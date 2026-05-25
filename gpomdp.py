@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 
 
@@ -10,117 +11,88 @@ def compute_discounted_returns(rewards, beta: float, debug: bool = False):
         returns.insert(0, G)
 
         if debug:
-            print(f"[Return] t={t}: G_t = r_t + beta * G_next = {r:.3f} + {beta:.3f} * ... = {G:.3f}")
+            print(
+                f"[Return] t={t}: "
+                f"G_t = r_t + beta * G_next = {r:.3f} + {beta:.3f} * ... = {G:.3f}"
+            )
 
     return torch.tensor(returns, dtype=torch.float32)
 
 
-def compute_gpomdp_gradient(policy, trajectories, beta: float, debug: bool = False):
+def compute_gpomdp_loss(policy, trajectories, beta: float, debug: bool = False):
     """
-    Future-form GPOMDP estimator:
+    Batched future-form GPOMDP objective.
 
-        G_t^beta = sum_{k=t}^{T-1} beta^{k-t} r_{k+1}
+    Estimator:
 
-        g = 1/T sum_t G_t^beta grad log pi(a_t | s_t)
+        g = (1/N) sum_i sum_t G_{i,t}^beta grad_theta log pi_theta(a_{i,t} | s_{i,t})
+
+    We minimize the negative objective:
+
+        L(theta) = -(1/N) sum_i sum_t G_{i,t}^beta log pi_theta(a_{i,t} | s_{i,t})
+
+    Then PyTorch computes:
+
+        grad L = -g
+
+    Therefore optimizer.step() performs gradient descent on L,
+    equivalent to gradient ascent on the GPOMDP objective.
     """
 
-    grads = [torch.zeros_like(p) for p in policy.parameters()]
-    total_steps = 0
+    total_loss = 0.0
 
     if debug:
-        print("\n========== GPOMDP GRADIENT ESTIMATION ==========")
-        print("Estimator:")
-        print("g = (1/T) * sum_t G_t^beta * grad_theta log pi_theta(a_t | s_t)")
-        print("================================================\n")
+        print("\n========== GPOMDP LOSS ==========")
+        print("Objective:")
+        print("J_hat(theta) = (1/N) * sum_i sum_t G_t^beta * log pi_theta(a_t | s_t)")
+        print("Loss:")
+        print("L(theta) = -J_hat(theta)")
+        print("=========================================\n")
 
     for traj_idx, traj in enumerate(trajectories):
-        if debug:
-            print(f"\n--- Trajectory {traj_idx} ---")
-            print(f"Length T = {len(traj.rewards)}")
-            print(f"Rewards = {traj.rewards}")
+        states = torch.tensor(
+            np.array(traj.states),
+            dtype=torch.float32,
+        )
+
+        actions = torch.tensor(
+            np.array(traj.actions),
+            dtype=torch.float32,
+        )
 
         returns = compute_discounted_returns(
             traj.rewards,
             beta=beta,
-            debug=debug,
+            debug=debug and traj_idx == 0,
         )
 
-        if debug:
-            print(f"Discounted returns G_t^beta = {returns.tolist()}")
+        returns = (returns - returns.mean()) / (returns.std() + 1e-8)
 
-        for t, (state, action, G_t) in enumerate(zip(traj.states, traj.actions, returns)):
-            state_tensor = torch.tensor(state, dtype=torch.float32)
+        log_probs = policy.log_prob(states, actions)
 
-            # Step 1: log pi_theta(a_t | s_t)
-            log_prob = policy.log_prob(state_tensor, action)
+        trajectory_objective = (returns * log_probs).sum()
+        trajectory_loss = -trajectory_objective
 
-            # Step 2: grad_theta log pi_theta(a_t | s_t)
-            grad_log_prob = torch.autograd.grad(
-                log_prob,
-                policy.parameters(),
-                retain_graph=False,
-                create_graph=False,
-            )
+        total_loss = total_loss + trajectory_loss
 
-            # Step 3: G_t * grad log pi
-            for i, g in enumerate(grad_log_prob):
-                contribution = G_t * g.detach()
-                grads[i] += contribution
+        if debug and traj_idx == 0:
+            print(f"\n--- Trajectory {traj_idx} ---")
+            print(f"states shape  = {tuple(states.shape)}")
+            print(f"actions shape = {tuple(actions.shape)}")
+            print(f"returns shape = {tuple(returns.shape)}")
+            print(f"log_probs shape = {tuple(log_probs.shape)}")
+            print(f"first returns = {returns[:5]}")
+            print(f"first log_probs = {log_probs[:5]}")
+            print(f"trajectory objective = {trajectory_objective.item():.6f}")
+            print(f"trajectory loss = {trajectory_loss.item():.6f}")
 
-                if debug and traj_idx == 0 and t < 5:
-                    print(f"\n[t={t}]")
-                    print(f"state s_t = {state}")
-                    print(f"action a_t = {action}")
-                    print(f"log pi(a_t|s_t) = {log_prob.item():.6f}")
-                    print(f"G_t^beta = {G_t.item():.6f}")
-                    print(f"grad log pi shape = {tuple(g.shape)}")
-                    print(f"contribution = G_t * grad log pi")
-                    print(contribution)
-
-            total_steps += 1
-
-    grads = [g / total_steps for g in grads]
+    loss = total_loss / len(trajectories)
 
     if debug:
         print("\n--- Final averaging step ---")
-        print(f"Total samples T = {total_steps}")
-        print("g_hat = accumulated_gradient / T")
+        print(f"Number of trajectories N = {len(trajectories)}")
+        print("loss = total_loss / N")
+        print(f"Final GPOMDP loss = {loss.item():.6f}")
+        print("========== END GPOMDP DEBUG ==========\n")
 
-        for i, g in enumerate(grads):
-            print(f"\nGradient for parameter tensor {i}:")
-            print(g)
-
-        print("\n========== END GPOMDP DEBUG ==========\n")
-
-    return grads
-
-
-def apply_gradient_step(policy, gradients, lr: float, debug: bool = False):
-    """
-    Gradient ascent update:
-
-        theta <- theta + lr * g_hat
-    """
-
-    if debug:
-        print("\n========== PARAMETER UPDATE ==========")
-        print("theta <- theta + alpha * g_hat")
-        print(f"alpha = {lr}")
-
-    with torch.no_grad():
-        for i, (param, grad) in enumerate(zip(policy.parameters(), gradients)):
-            if debug:
-                print(f"\nParameter tensor {i}")
-                print("theta before:")
-                print(param.data)
-                print("gradient:")
-                print(grad)
-
-            param += lr * grad
-
-            if debug:
-                print("theta after:")
-                print(param.data)
-
-    if debug:
-        print("========== END PARAMETER UPDATE ==========\n")
+    return loss

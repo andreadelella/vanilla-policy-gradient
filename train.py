@@ -2,26 +2,28 @@ import gymnasium as gym
 import numpy as np
 import torch
 
-from data_collection import collect_trajectories
-from policy import LinearSoftmaxPolicy
+from data_collection import collect_trajectories, collect_parallel_trajectories
+from policy import GaussianPolicy
 # Future-return version
-from gpomdp import compute_gpomdp_gradient, apply_gradient_step
-
-# Eligibility traces version
-#from gpomdp_elig_traces import compute_gpomdp_textbook_gradient as compute_gpomdp_gradient
-#from gpomdp_elig_traces import apply_gradient_step
+from gpomdp import compute_gpomdp_loss
 
 
-ENV_ID = "CartPole-v1"
+ENV_ID = "Pendulum-v1"
 
 SEED = 23
-N_ITERATIONS = 5000
-N_TRAJECTORIES = 10
+N_ITERATIONS = 1000
+N_TRAJECTORIES = 2 #Use for non-parallale computation
+N_ENVS = 8
 
 BETA = 0.99
-LR = 1e-3
 
-EVAL_EVERY = 100
+LR = 1e-4
+
+EVAL_EVERY = 5
+
+HIDDEN_STATES=(64,64)
+INIT_LOG_STD=-1
+LEARN_STD=True
 
 
 def evaluate_policy(env, policy, n_episodes=5, seed=None):
@@ -59,19 +61,27 @@ def main():
     eval_env = gym.make(ENV_ID)
 
     state_dim = env.observation_space.shape[0]
-    action_dim = env.action_space.n
+    action_dim = env.action_space.shape[0]
 
-    policy = LinearSoftmaxPolicy(state_dim, action_dim)
+    policy = GaussianPolicy(
+        state_dim=state_dim,
+        action_dim=action_dim,
+        hidden_sizes=HIDDEN_STATES,
+        init_log_std=INIT_LOG_STD,
+        learn_std=LEARN_STD
+    )
 
     training_rewards = []
     evaluation_rewards = []
 
+    optimizer = torch.optim.Adam(policy.parameters(), lr=LR)
+
     for iteration in range(N_ITERATIONS):
-        trajectories = collect_trajectories(
-            env=env,
+        trajectories = collect_parallel_trajectories(
+            env_id=ENV_ID,
             policy=policy,
-            n_trajectories=N_TRAJECTORIES,
-            seed=SEED + iteration * N_TRAJECTORIES,
+            n_envs=N_ENVS,
+            seed=SEED + iteration * N_ENVS,
         )
 
         batch_reward = np.mean([
@@ -79,18 +89,17 @@ def main():
         ])
 
         debug = iteration == 0
-        gradients = compute_gpomdp_gradient(
+        optimizer.zero_grad()
+
+        loss = compute_gpomdp_loss(
             policy=policy,
             trajectories=trajectories,
             beta=BETA,
-            debug=debug
+            debug=debug,
         )
 
-        apply_gradient_step(
-            policy=policy,
-            gradients=gradients,
-            lr=LR,
-        )
+        loss.backward()
+        optimizer.step()
 
         training_rewards.append(batch_reward)
 

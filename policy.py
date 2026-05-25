@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 from torch.distributions import Categorical
-
+from torch.distributions import Normal
 
 class LinearSoftmaxPolicy(nn.Module):
     def __init__(self, state_dim: int, action_dim: int):
@@ -61,3 +61,56 @@ class MLPSoftmaxPolicy(nn.Module):
         )
 
         return dist.log_prob(action_tensor)
+    
+class GaussianPolicy(nn.Module):
+    def __init__(
+        self,
+        state_dim: int,
+        action_dim: int,
+        hidden_sizes=(64, 64),
+        init_log_std: float = -0.5,
+        learn_std: bool = True,
+    ):
+        super().__init__()
+
+        layers = []
+        input_dim = state_dim
+
+        for hidden_dim in hidden_sizes:
+            layers.append(nn.Linear(input_dim, hidden_dim))
+            layers.append(nn.Tanh())
+            input_dim = hidden_dim
+
+        layers.append(nn.Linear(input_dim, action_dim))
+
+        self.mean_net = nn.Sequential(*layers)
+
+        initial_log_std = torch.ones(action_dim) * init_log_std
+
+        if learn_std:
+            self.log_std = nn.Parameter(initial_log_std)
+        else:
+            self.register_buffer("log_std", initial_log_std)
+
+    def forward(self, state: torch.Tensor):
+        mean = self.mean_net(state)
+        std = torch.exp(self.log_std)
+        return mean, std
+
+    def sample_action(self, state: torch.Tensor):
+        mean, std = self.forward(state)
+        dist = Normal(mean, std)
+        action = dist.sample()
+        return action.cpu().numpy()
+
+    def log_prob(self, state: torch.Tensor, action) -> torch.Tensor:
+        mean, std = self.forward(state)
+        dist = Normal(mean, std)
+
+        action_tensor = torch.tensor(
+            action,
+            dtype=torch.float32,
+            device=state.device,
+        )
+
+        return dist.log_prob(action_tensor).sum(dim=-1)
