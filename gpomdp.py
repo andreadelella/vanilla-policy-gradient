@@ -111,8 +111,14 @@ def compute_gpomdp_loss(
     n_trajectories, max_len = rewards.shape
 
     flat_states = states.reshape(n_trajectories * max_len, -1)
-    flat_actions = actions.reshape(n_trajectories * max_len, -1)
 
+    if actions.ndim == 2:
+        # Discrete actions: [N, T] -> [N*T]
+        flat_actions = actions.reshape(n_trajectories * max_len).long()
+    else:
+        # Continuous actions: [N, T, action_dim] -> [N*T, action_dim]
+        flat_actions = actions.reshape(n_trajectories * max_len, -1)
+    
     log_probs = policy.log_prob(flat_states, flat_actions)
     log_probs = log_probs.reshape(n_trajectories, max_len)
 

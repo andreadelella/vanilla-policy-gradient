@@ -2,11 +2,12 @@ import json
 import time
 
 import gymnasium as gym
+from gymnasium.spaces import Box, Discrete
 import numpy as np
 import torch
 
 from data_collection import collect_parallel_trajectories
-from policy import GaussianPolicy
+from policy import GaussianPolicy, MLPSoftmaxPolicy
 from gpomdp import compute_gpomdp_loss
 
 
@@ -62,15 +63,30 @@ def main(config_path="config.json"):
     eval_env = gym.make(cfg["env_id"])
 
     state_dim = env.observation_space.shape[0]
-    action_dim = env.action_space.shape[0]
 
-    policy = GaussianPolicy(
-        state_dim=state_dim,
-        action_dim=action_dim,
-        hidden_sizes=tuple(cfg["hidden_sizes"]),
-        init_log_std=cfg["init_log_std"],
-        learn_std=cfg["learn_std"],
-    )
+    if isinstance(env.action_space, Box):
+        action_dim = env.action_space.shape[0]
+
+        policy = GaussianPolicy(
+            state_dim=state_dim,
+            action_dim=action_dim,
+            hidden_sizes=tuple(cfg["hidden_sizes"]),
+            init_log_std=cfg["init_log_std"],
+            learn_std=cfg["learn_std"],
+        )
+
+    elif isinstance(env.action_space, Discrete):
+        action_dim = env.action_space.n
+
+        policy = MLPSoftmaxPolicy(
+            state_dim=state_dim,
+            action_dim=action_dim,
+            hidden_dim=cfg.get("hidden_dim", 32),
+        )
+
+    else:
+        raise ValueError(f"Unsupported action space: {env.action_space}")
+
 
     optimizer = torch.optim.Adam(policy.parameters(), lr=cfg["lr"])
 

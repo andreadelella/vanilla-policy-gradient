@@ -33,10 +33,13 @@ def collect_parallel_trajectories(
 
     finished = np.zeros(n_envs, dtype=bool)
 
-    full_actions = np.zeros(
-        (n_envs, *envs.single_action_space.shape),
-        dtype=np.float32,
-    )
+    if isinstance(envs.single_action_space, gym.spaces.Box):
+        full_actions = np.zeros(
+            (n_envs, *envs.single_action_space.shape),
+            dtype=np.float32,
+        )
+    else:
+        full_actions = np.zeros(n_envs, dtype=np.int64)
 
     while not np.all(finished):
         active_indices = np.where(~finished)[0]
@@ -47,11 +50,14 @@ def collect_parallel_trajectories(
         with torch.no_grad():
             raw_actions = policy.sample_action(state_tensor)
 
-        env_actions = np.clip(
-            raw_actions,
-            envs.single_action_space.low,
-            envs.single_action_space.high,
-        )
+        if isinstance(envs.single_action_space, gym.spaces.Box):
+            env_actions = np.clip(
+                raw_actions,
+                envs.single_action_space.low,
+                envs.single_action_space.high,
+            )
+        else:
+            env_actions = raw_actions
 
         full_actions[:] = 0.0
         full_actions[active_indices] = env_actions
