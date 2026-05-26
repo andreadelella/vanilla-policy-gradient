@@ -1,29 +1,18 @@
+import json
+from pathlib import Path
+
 import gymnasium as gym
 import numpy as np
 import torch
 
-from data_collection import collect_trajectories, collect_parallel_trajectories
+from data_collection import collect_parallel_trajectories
 from policy import GaussianPolicy
-# Future-return version
 from gpomdp import compute_gpomdp_loss
 
 
-ENV_ID = "Pendulum-v1"
-
-SEED = 23
-N_ITERATIONS = 1000
-N_TRAJECTORIES = 2 #Use for non-parallale computation
-N_ENVS = 8
-
-BETA = 0.99
-
-LR = 1e-4
-
-EVAL_EVERY = 5
-
-HIDDEN_STATES=(64,64)
-INIT_LOG_STD=-1
-LEARN_STD=True
+def load_config(path="config.json"):
+    with open(path, "r") as f:
+        return json.load(f)
 
 
 def evaluate_policy(env, policy, n_episodes=5, seed=None):
@@ -53,12 +42,14 @@ def evaluate_policy(env, policy, n_episodes=5, seed=None):
     return float(np.mean(episode_rewards))
 
 
-def main():
-    torch.manual_seed(SEED)
-    np.random.seed(SEED)
+def main(config_path="config.json"):
+    cfg = load_config(config_path)
 
-    env = gym.make(ENV_ID)
-    eval_env = gym.make(ENV_ID)
+    torch.manual_seed(cfg["seed"])
+    np.random.seed(cfg["seed"])
+
+    env = gym.make(cfg["env_id"])
+    eval_env = gym.make(cfg["env_id"])
 
     state_dim = env.observation_space.shape[0]
     action_dim = env.action_space.shape[0]
@@ -66,22 +57,22 @@ def main():
     policy = GaussianPolicy(
         state_dim=state_dim,
         action_dim=action_dim,
-        hidden_sizes=HIDDEN_STATES,
-        init_log_std=INIT_LOG_STD,
-        learn_std=LEARN_STD
+        hidden_sizes=tuple(cfg["hidden_sizes"]),
+        init_log_std=cfg["init_log_std"],
+        learn_std=cfg["learn_std"],
     )
 
     training_rewards = []
     evaluation_rewards = []
 
-    optimizer = torch.optim.Adam(policy.parameters(), lr=LR)
+    optimizer = torch.optim.Adam(policy.parameters(), lr=cfg["lr"])
 
-    for iteration in range(N_ITERATIONS):
+    for iteration in range(cfg["n_iterations"]):
         trajectories = collect_parallel_trajectories(
-            env_id=ENV_ID,
+            env_id=cfg["env_id"],
             policy=policy,
-            n_envs=N_ENVS,
-            seed=SEED + iteration * N_ENVS,
+            n_envs=cfg["n_envs"],
+            seed=cfg["seed"] + iteration * cfg["n_envs"],
         )
 
         batch_reward = np.mean([
@@ -89,12 +80,13 @@ def main():
         ])
 
         debug = iteration == 0
+
         optimizer.zero_grad()
 
         loss = compute_gpomdp_loss(
             policy=policy,
             trajectories=trajectories,
-            beta=BETA,
+            gamma=cfg["gamma"],
             debug=debug,
         )
 
@@ -103,12 +95,12 @@ def main():
 
         training_rewards.append(batch_reward)
 
-        if iteration % EVAL_EVERY == 0:
+        if iteration % cfg["eval_every"] == 0:
             eval_reward = evaluate_policy(
                 env=eval_env,
                 policy=policy,
-                n_episodes=5,
-                seed=SEED + 10_000 + iteration,
+                n_episodes=cfg["n_eval_episodes"],
+                seed=cfg["seed"] + 10_000 + iteration,
             )
 
             evaluation_rewards.append(eval_reward)

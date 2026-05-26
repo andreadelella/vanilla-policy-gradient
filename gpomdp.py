@@ -2,34 +2,34 @@ import numpy as np
 import torch
 
 
-def compute_discounted_returns(rewards, beta: float, debug: bool = False):
+def compute_discounted_returns(rewards, gamma: float, debug: bool = False):
     returns = []
     G = 0.0
 
     for t, r in reversed(list(enumerate(rewards))):
-        G = r + beta * G
+        G = r + gamma * G
         returns.insert(0, G)
 
         if debug:
             print(
                 f"[Return] t={t}: "
-                f"G_t = r_t + beta * G_next = {r:.3f} + {beta:.3f} * ... = {G:.3f}"
+                f"G_t = r_t + gamma * G_next = {r:.3f} + {gamma:.3f} * ... = {G:.3f}"
             )
 
     return torch.tensor(returns, dtype=torch.float32)
 
 
-def compute_gpomdp_loss(policy, trajectories, beta: float, debug: bool = False):
+def compute_gpomdp_loss(policy, trajectories, gamma: float, debug: bool = False):
     """
     Batched future-form GPOMDP objective.
 
     Estimator:
 
-        g = (1/N) sum_i sum_t G_{i,t}^beta grad_theta log pi_theta(a_{i,t} | s_{i,t})
+        g = (1/N) sum_i sum_t G_{i,t}^gamma grad_theta log pi_theta(a_{i,t} | s_{i,t})
 
     We minimize the negative objective:
 
-        L(theta) = -(1/N) sum_i sum_t G_{i,t}^beta log pi_theta(a_{i,t} | s_{i,t})
+        L(theta) = -(1/N) sum_i sum_t G_{i,t}^gamma log pi_theta(a_{i,t} | s_{i,t})
 
     Then PyTorch computes:
 
@@ -44,7 +44,7 @@ def compute_gpomdp_loss(policy, trajectories, beta: float, debug: bool = False):
     if debug:
         print("\n========== GPOMDP LOSS ==========")
         print("Objective:")
-        print("J_hat(theta) = (1/N) * sum_i sum_t G_t^beta * log pi_theta(a_t | s_t)")
+        print("J_hat(theta) = (1/N) * sum_i sum_t G_t^gamma * log pi_theta(a_t | s_t)")
         print("Loss:")
         print("L(theta) = -J_hat(theta)")
         print("=========================================\n")
@@ -62,7 +62,7 @@ def compute_gpomdp_loss(policy, trajectories, beta: float, debug: bool = False):
 
         returns = compute_discounted_returns(
             traj.rewards,
-            beta=beta,
+            gamma=gamma,
             debug=debug and traj_idx == 0,
         )
 
