@@ -2,97 +2,134 @@ import numpy as np
 import torch
 
 
-def compute_discounted_returns(rewards, gamma: float, debug: bool = False):
-    returns = []
-    G = 0.0
-
-    for t, r in reversed(list(enumerate(rewards))):
-        G = r + gamma * G
-        returns.insert(0, G)
-
-        if debug:
-            print(
-                f"[Return] t={t}: "
-                f"G_t = r_t + gamma * G_next = {r:.3f} + {gamma:.3f} * ... = {G:.3f}"
-            )
-
-    return torch.tensor(returns, dtype=torch.float32)
-
-
-def compute_gpomdp_loss(policy, trajectories, gamma: float, debug: bool = False):
+def compute_discounted_returns_matrix(
+    rewards: torch.Tensor,
+    gamma: float,
+) -> torch.Tensor:
     """
-    Batched future-form GPOMDP objective.
+    rewards: [N, T]
 
-    Estimator:
-
-        g = (1/N) sum_i sum_t G_{i,t}^gamma grad_theta log pi_theta(a_{i,t} | s_{i,t})
-
-    We minimize the negative objective:
-
-        L(theta) = -(1/N) sum_i sum_t G_{i,t}^gamma log pi_theta(a_{i,t} | s_{i,t})
-
-    Then PyTorch computes:
-
-        grad L = -g
-
-    Therefore optimizer.step() performs gradient descent on L,
-    equivalent to gradient ascent on the GPOMDP objective.
+    returns[n, t] = r[n, t] + gamma * r[n, t+1] + ...
     """
 
-    total_loss = 0.0
+    returns = torch.zeros_like(rewards)
+    running_return = torch.zeros(
+        rewards.shape[0],
+        dtype=rewards.dtype,
+        device=rewards.device,
+    )
+
+    for t in reversed(range(rewards.shape[1])):
+        running_return = rewards[:, t] + gamma * running_return
+        returns[:, t] = running_return
+
+    return returns
+
+
+def trajectories_to_tensors(trajectories):
+    """
+    Converts list[Trajectory] into padded tensors.
+
+    states:  [N, T_max, state_dim]
+    actions: [N, T_max, action_dim]
+    rewards: [N, T_max]
+    mask:    [N, T_max]
+    """
+
+    n_trajectories = len(trajectories)
+    max_len = max(len(traj.rewards) for traj in trajectories)
+
+    state_dim = np.asarray(trajectories[0].states[0]).shape[-1]
+    action_shape = np.asarray(trajectories[0].actions[0]).shape
+
+    states = np.zeros(
+        (n_trajectories, max_len, state_dim),
+        dtype=np.float32,
+    )
+
+    actions = np.zeros(
+        (n_trajectories, max_len, *action_shape),
+        dtype=np.float32,
+    )
+
+    rewards = np.zeros(
+        (n_trajectories, max_len),
+        dtype=np.float32,
+    )
+
+    mask = np.zeros(
+        (n_trajectories, max_len),
+        dtype=np.float32,
+    )
+
+    for i, traj in enumerate(trajectories):
+        T = len(traj.rewards)
+
+        states[i, :T] = np.asarray(traj.states, dtype=np.float32)
+        actions[i, :T] = np.asarray(traj.actions, dtype=np.float32)
+        rewards[i, :T] = np.asarray(traj.rewards, dtype=np.float32)
+        mask[i, :T] = 1.0
+
+    return (
+        torch.as_tensor(states, dtype=torch.float32),
+        torch.as_tensor(actions, dtype=torch.float32),
+        torch.as_tensor(rewards, dtype=torch.float32),
+        torch.as_tensor(mask, dtype=torch.float32),
+    )
+
+
+def compute_gpomdp_loss(
+    policy,
+    trajectories,
+    gamma: float,
+    normalize_returns: bool = True,
+    debug: bool = False,
+):
+    """
+    Vectorized batched reward-to-go policy-gradient loss.
+
+    This is still the same estimator you were using:
+
+        L(theta) = - mean_i sum_t G_{i,t} log pi_theta(a_{i,t}|s_{i,t})
+
+    but computed in a batched way.
+    """
+
+    states, actions, rewards, mask = trajectories_to_tensors(trajectories)
+
+    returns = compute_discounted_returns_matrix(
+        rewards=rewards,
+        gamma=gamma,
+    )
+
+    if normalize_returns:
+        valid_returns = returns[mask.bool()]
+        returns = (returns - valid_returns.mean()) / (
+            valid_returns.std() + 1e-8
+        )
+
+    n_trajectories, max_len = rewards.shape
+
+    flat_states = states.reshape(n_trajectories * max_len, -1)
+    flat_actions = actions.reshape(n_trajectories * max_len, -1)
+
+    log_probs = policy.log_prob(flat_states, flat_actions)
+    log_probs = log_probs.reshape(n_trajectories, max_len)
+
+    objective = (returns * log_probs * mask).sum(dim=1).mean()
+    loss = -objective
 
     if debug:
         print("\n========== GPOMDP LOSS ==========")
-        print("Objective:")
-        print("J_hat(theta) = (1/N) * sum_i sum_t G_t^gamma * log pi_theta(a_t | s_t)")
-        print("Loss:")
-        print("L(theta) = -J_hat(theta)")
-        print("=========================================\n")
-
-    for traj_idx, traj in enumerate(trajectories):
-        states = torch.tensor(
-            np.array(traj.states),
-            dtype=torch.float32,
-        )
-
-        actions = torch.tensor(
-            np.array(traj.actions),
-            dtype=torch.float32,
-        )
-
-        returns = compute_discounted_returns(
-            traj.rewards,
-            gamma=gamma,
-            debug=debug and traj_idx == 0,
-        )
-
-        returns = (returns - returns.mean()) / (returns.std() + 1e-8)
-
-        log_probs = policy.log_prob(states, actions)
-
-        trajectory_objective = (returns * log_probs).sum()
-        trajectory_loss = -trajectory_objective
-
-        total_loss = total_loss + trajectory_loss
-
-        if debug and traj_idx == 0:
-            print(f"\n--- Trajectory {traj_idx} ---")
-            print(f"states shape  = {tuple(states.shape)}")
-            print(f"actions shape = {tuple(actions.shape)}")
-            print(f"returns shape = {tuple(returns.shape)}")
-            print(f"log_probs shape = {tuple(log_probs.shape)}")
-            print(f"first returns = {returns[:5]}")
-            print(f"first log_probs = {log_probs[:5]}")
-            print(f"trajectory objective = {trajectory_objective.item():.6f}")
-            print(f"trajectory loss = {trajectory_loss.item():.6f}")
-
-    loss = total_loss / len(trajectories)
-
-    if debug:
-        print("\n--- Final averaging step ---")
-        print(f"Number of trajectories N = {len(trajectories)}")
-        print("loss = total_loss / N")
-        print(f"Final GPOMDP loss = {loss.item():.6f}")
+        print(f"states shape  = {tuple(states.shape)}")
+        print(f"actions shape = {tuple(actions.shape)}")
+        print(f"rewards shape = {tuple(rewards.shape)}")
+        print(f"returns shape = {tuple(returns.shape)}")
+        print(f"mask shape    = {tuple(mask.shape)}")
+        print(f"log_probs shape = {tuple(log_probs.shape)}")
+        print(f"valid steps = {int(mask.sum().item())}")
+        print(f"objective = {objective.item():.6f}")
+        print(f"loss = {loss.item():.6f}")
         print("========== END GPOMDP DEBUG ==========\n")
 
     return loss

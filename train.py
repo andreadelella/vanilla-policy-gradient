@@ -1,5 +1,5 @@
 import json
-from pathlib import Path
+import time
 
 import gymnasium as gym
 import numpy as np
@@ -13,6 +13,16 @@ from gpomdp import compute_gpomdp_loss
 def load_config(path="config.json"):
     with open(path, "r") as f:
         return json.load(f)
+
+
+def make_env(env_id: str, seed: int | None):
+    def thunk():
+        env = gym.make(env_id)
+        if seed is not None:
+            env.reset(seed=seed)
+        return env
+
+    return thunk
 
 
 def evaluate_policy(env, policy, n_episodes=5, seed=None):
@@ -62,57 +72,81 @@ def main(config_path="config.json"):
         learn_std=cfg["learn_std"],
     )
 
+    optimizer = torch.optim.Adam(policy.parameters(), lr=cfg["lr"])
+
+    env_fns = [
+        make_env(cfg["env_id"], cfg["seed"] + i)
+        for i in range(cfg["n_envs"])
+    ]
+
+    train_envs = gym.vector.AsyncVectorEnv(env_fns)
+
     training_rewards = []
     evaluation_rewards = []
 
-    optimizer = torch.optim.Adam(policy.parameters(), lr=cfg["lr"])
-
-    for iteration in range(cfg["n_iterations"]):
-        trajectories = collect_parallel_trajectories(
-            env_id=cfg["env_id"],
-            policy=policy,
-            n_envs=cfg["n_envs"],
-            seed=cfg["seed"] + iteration * cfg["n_envs"],
-        )
-
-        batch_reward = np.mean([
-            sum(traj.rewards) for traj in trajectories
-        ])
-
-        debug = iteration == 0
-
-        optimizer.zero_grad()
-
-        loss = compute_gpomdp_loss(
-            policy=policy,
-            trajectories=trajectories,
-            gamma=cfg["gamma"],
-            debug=debug,
-        )
-
-        loss.backward()
-        optimizer.step()
-
-        training_rewards.append(batch_reward)
-
-        if iteration % cfg["eval_every"] == 0:
-            eval_reward = evaluate_policy(
-                env=eval_env,
+    try:
+        for iteration in range(cfg["n_iterations"]):
+            t0 = time.perf_counter()
+            trajectories = collect_parallel_trajectories(
+                envs=train_envs,
                 policy=policy,
-                n_episodes=cfg["n_eval_episodes"],
-                seed=cfg["seed"] + 10_000 + iteration,
             )
 
-            evaluation_rewards.append(eval_reward)
+            t1 = time.perf_counter()
 
-            print(
-                f"Iteration {iteration:04d} | "
-                f"train reward: {batch_reward:.2f} | "
-                f"eval reward: {eval_reward:.2f}"
+            batch_reward = float(np.mean([
+                sum(traj.rewards) for traj in trajectories
+            ]))
+
+            debug = iteration == 0
+
+            optimizer.zero_grad()
+
+            loss = compute_gpomdp_loss(
+                policy=policy,
+                trajectories=trajectories,
+                gamma=cfg["gamma"],
+                normalize_returns=cfg["normalize_returns"],
+                debug=debug,
             )
 
-    env.close()
-    eval_env.close()
+            loss.backward()
+            optimizer.step()
+
+            t2 = time.perf_counter()
+            rollout_time = t1 - t0
+            update_time = t2 - t1
+            iteration_time = t2 - t0
+
+            n_steps = sum(len(traj.rewards) for traj in trajectories)
+            samples_per_sec = n_steps / iteration_time
+
+            training_rewards.append(batch_reward)
+
+            if iteration % cfg["eval_every"] == 0:
+                eval_reward = evaluate_policy(
+                    env=eval_env,
+                    policy=policy,
+                    n_episodes=cfg["n_eval_episodes"],
+                    seed=cfg["seed"] + 10_000 + iteration,
+                )
+
+                evaluation_rewards.append(eval_reward)
+
+                print(
+                    f"Iteration {iteration:04d} | "
+                    f"train reward: {batch_reward:.2f} | "
+                    f"eval reward: {eval_reward:.2f} | "
+                    f"rollout: {rollout_time:.3f}s | "
+                    f"update: {update_time:.3f}s | "
+                    f"total: {iteration_time:.3f}s | "
+                    f"samples/s: {samples_per_sec:.0f}"
+                )
+
+    finally:
+        train_envs.close()
+        env.close()
+        eval_env.close()
 
     return policy, training_rewards, evaluation_rewards
 

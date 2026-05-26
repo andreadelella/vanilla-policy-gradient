@@ -1,7 +1,7 @@
 import torch
 from torch import nn
-from torch.distributions import Categorical
-from torch.distributions import Normal
+from torch.distributions import Categorical, Normal
+
 
 class LinearSoftmaxPolicy(nn.Module):
     def __init__(self, state_dim: int, action_dim: int):
@@ -12,24 +12,29 @@ class LinearSoftmaxPolicy(nn.Module):
         logits = self.linear(state)
         return torch.softmax(logits, dim=-1)
 
-    def sample_action(self, state: torch.Tensor) -> int:
+    def distribution(self, state: torch.Tensor) -> Categorical:
         probs = self.forward(state)
-        dist = Categorical(probs)
-        action = dist.sample()
-        return int(action.item())
+        return Categorical(probs)
 
-    def log_prob(self, state: torch.Tensor, action: int) -> torch.Tensor:
-        probs = self.forward(state)
-        dist = Categorical(probs)
+    def sample_action_tensor(self, state: torch.Tensor) -> torch.Tensor:
+        dist = self.distribution(state)
+        return dist.sample()
 
-        action_tensor = torch.tensor(
+    def sample_action(self, state: torch.Tensor):
+        action = self.sample_action_tensor(state)
+        return action.cpu().numpy()
+
+    def log_prob(self, state: torch.Tensor, action) -> torch.Tensor:
+        dist = self.distribution(state)
+
+        action_tensor = torch.as_tensor(
             action,
             dtype=torch.long,
             device=state.device,
         )
 
         return dist.log_prob(action_tensor)
-    
+
 
 class MLPSoftmaxPolicy(nn.Module):
     def __init__(self, state_dim: int, action_dim: int, hidden_dim: int = 32):
@@ -45,23 +50,30 @@ class MLPSoftmaxPolicy(nn.Module):
         logits = self.net(state)
         return torch.softmax(logits, dim=-1)
 
-    def sample_action(self, state: torch.Tensor) -> int:
+    def distribution(self, state: torch.Tensor) -> Categorical:
         probs = self.forward(state)
-        dist = Categorical(probs)
-        return int(dist.sample().item())
+        return Categorical(probs)
 
-    def log_prob(self, state: torch.Tensor, action: int) -> torch.Tensor:
-        probs = self.forward(state)
-        dist = Categorical(probs)
+    def sample_action_tensor(self, state: torch.Tensor) -> torch.Tensor:
+        dist = self.distribution(state)
+        return dist.sample()
 
-        action_tensor = torch.tensor(
+    def sample_action(self, state: torch.Tensor):
+        action = self.sample_action_tensor(state)
+        return action.cpu().numpy()
+
+    def log_prob(self, state: torch.Tensor, action) -> torch.Tensor:
+        dist = self.distribution(state)
+
+        action_tensor = torch.as_tensor(
             action,
             dtype=torch.long,
             device=state.device,
         )
 
         return dist.log_prob(action_tensor)
-    
+
+
 class GaussianPolicy(nn.Module):
     def __init__(
         self,
@@ -85,7 +97,11 @@ class GaussianPolicy(nn.Module):
 
         self.mean_net = nn.Sequential(*layers)
 
-        initial_log_std = torch.ones(action_dim) * init_log_std
+        initial_log_std = torch.full(
+            (action_dim,),
+            float(init_log_std),
+            dtype=torch.float32,
+        )
 
         if learn_std:
             self.log_std = nn.Parameter(initial_log_std)
@@ -97,17 +113,22 @@ class GaussianPolicy(nn.Module):
         std = torch.exp(self.log_std)
         return mean, std
 
-    def sample_action(self, state: torch.Tensor):
+    def distribution(self, state: torch.Tensor) -> Normal:
         mean, std = self.forward(state)
-        dist = Normal(mean, std)
-        action = dist.sample()
+        return Normal(mean, std)
+
+    def sample_action_tensor(self, state: torch.Tensor) -> torch.Tensor:
+        dist = self.distribution(state)
+        return dist.sample()
+
+    def sample_action(self, state: torch.Tensor):
+        action = self.sample_action_tensor(state)
         return action.cpu().numpy()
 
     def log_prob(self, state: torch.Tensor, action) -> torch.Tensor:
-        mean, std = self.forward(state)
-        dist = Normal(mean, std)
+        dist = self.distribution(state)
 
-        action_tensor = torch.tensor(
+        action_tensor = torch.as_tensor(
             action,
             dtype=torch.float32,
             device=state.device,

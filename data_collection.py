@@ -1,10 +1,9 @@
-# collect_trajectories.py
-
 from dataclasses import dataclass
 from typing import List
+
+import gymnasium as gym
 import numpy as np
 import torch
-import gymnasium as gym
 
 
 @dataclass
@@ -15,29 +14,17 @@ class Trajectory:
     dones: List[bool]
 
 
-def make_env(env_id: str, seed: int):
-    def thunk():
-        env = gym.make(env_id)
-        env.reset(seed=seed)
-        return env
-
-    return thunk
-
-
 def collect_parallel_trajectories(
-    env_id: str,
+    envs,
     policy,
-    n_envs: int,
-    seed: int | None = None,
 ) -> List[Trajectory]:
-    env_fns = [
-        make_env(env_id, None if seed is None else seed + i)
-        for i in range(n_envs)
-    ]
-
-    envs = gym.vector.AsyncVectorEnv(env_fns)
+    """
+    Collect one complete episode from each environment in an existing VectorEnv.
+    """
 
     states, _ = envs.reset()
+
+    n_envs = envs.num_envs
 
     trajectories = [
         Trajectory(states=[], actions=[], rewards=[], dones=[])
@@ -46,82 +33,42 @@ def collect_parallel_trajectories(
 
     finished = np.zeros(n_envs, dtype=bool)
 
+    full_actions = np.zeros(
+        (n_envs, *envs.single_action_space.shape),
+        dtype=np.float32,
+    )
+
     while not np.all(finished):
         active_indices = np.where(~finished)[0]
 
-        state_tensor = torch.tensor(states, dtype=torch.float32)
+        active_states = states[active_indices]
+        state_tensor = torch.tensor(active_states, dtype=torch.float32)
 
         with torch.no_grad():
             raw_actions = policy.sample_action(state_tensor)
-            
+
         env_actions = np.clip(
             raw_actions,
             envs.single_action_space.low,
             envs.single_action_space.high,
         )
 
-        next_states, rewards, terminated, truncated, _ = envs.step(env_actions)
+        full_actions[:] = 0.0
+        full_actions[active_indices] = env_actions
+
+        next_states, rewards, terminated, truncated, _ = envs.step(full_actions)
 
         dones = np.logical_or(terminated, truncated)
 
-        for i in active_indices:
-            trajectories[i].states.append(states[i].copy())
-            trajectories[i].actions.append(raw_actions[i].copy())
-            trajectories[i].rewards.append(float(rewards[i]))
-            trajectories[i].dones.append(bool(dones[i]))
+        for local_idx, env_idx in enumerate(active_indices):
+            trajectories[env_idx].states.append(states[env_idx].copy())
+            trajectories[env_idx].actions.append(raw_actions[local_idx].copy())
+            trajectories[env_idx].rewards.append(float(rewards[env_idx]))
+            trajectories[env_idx].dones.append(bool(dones[env_idx]))
 
-            if dones[i]:
-                finished[i] = True
+            if dones[env_idx]:
+                finished[env_idx] = True
 
         states = next_states
-
-    envs.close()
-
-    return trajectories
-
-
-def collect_trajectory(env, policy, seed=None) -> Trajectory:
-    states = []
-    actions = []
-    rewards = []
-    dones = []
-
-    state, _ = env.reset(seed=seed)
-    done = False
-
-    while not done:
-        states.append(state)
-
-        state_tensor = torch.tensor(state, dtype=torch.float32)
-
-        with torch.no_grad():
-            action = policy.sample_action(state_tensor)
-            action = np.clip(action, env.action_space.low, env.action_space.high)
-
-        next_state, reward, terminated, truncated, _ = env.step(action)
-
-        done = terminated or truncated
-
-        actions.append(action)
-        rewards.append(float(reward))
-        dones.append(done)
-
-        state = next_state
-
-    return Trajectory(
-        states=states,
-        actions=actions,
-        rewards=rewards,
-        dones=dones,
-    )
-
-
-def collect_trajectories(env, policy, n_trajectories: int, seed=None) -> List[Trajectory]:
-    trajectories = []
-
-    for i in range(n_trajectories):
-        trajectory_seed = None if seed is None else seed + i
-        traj = collect_trajectory(env, policy, seed=trajectory_seed)
-        trajectories.append(traj)
 
     return trajectories
