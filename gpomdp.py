@@ -86,13 +86,7 @@ def compute_gpomdp_loss(
     debug: bool = False,
 ):
     """
-    Vectorized batched reward-to-go policy-gradient loss.
-
-    This is still the same estimator you were using:
-
         L(theta) = - mean_i sum_t G_{i,t} log pi_theta(a_{i,t}|s_{i,t})
-
-    but computed in a batched way.
     """
 
     states, actions, rewards, mask = trajectories_to_tensors(trajectories)
