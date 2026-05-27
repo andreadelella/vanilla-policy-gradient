@@ -1,15 +1,22 @@
 {
-  "env_id": "CartPole-v1",
+  "env_id": "Swimmer-v5",
+
   "seed": 23,
+
   "n_iterations": 5000,
-  "n_trajectories": 2,
-  "n_envs": 32,
+  "n_envs": 8,
+  "horizon": 500,
+
   "gamma": 0.99,
   "lr": 0.0001,
+
   "normalize_returns": true,
-  "eval_every": 5,
+  "clip_actions": true,
+
   "hidden_sizes": [64, 64],
   "init_log_std": -1,
   "learn_std": true,
+
+  "eval_every": 5,
   "n_eval_episodes": 5
 }
