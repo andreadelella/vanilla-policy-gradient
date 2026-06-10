@@ -17,64 +17,76 @@ class Trajectory:
 def collect_parallel_trajectories(
     envs,
     policy,
+    n_trajectories_per_env: int = 1,
 ) -> List[Trajectory]:
     """
-    Collect one complete episode from each environment in an existing VectorEnv.
+    Collect n_trajectories_per_env complete episodes from each environment.
+
+    Total collected trajectories:
+        n_envs * n_trajectories_per_env
     """
 
-    states, _ = envs.reset()
+    all_trajectories = []
 
-    n_envs = envs.num_envs
+    for _ in range(n_trajectories_per_env):
+        states, _ = envs.reset()
 
-    trajectories = [
-        Trajectory(states=[], actions=[], rewards=[], dones=[])
-        for _ in range(n_envs)
-    ]
+        n_envs = envs.num_envs
 
-    finished = np.zeros(n_envs, dtype=bool)
+        trajectories = [
+            Trajectory(states=[], actions=[], rewards=[], dones=[])
+            for _ in range(n_envs)
+        ]
 
-    if isinstance(envs.single_action_space, gym.spaces.Box):
-        full_actions = np.zeros(
-            (n_envs, *envs.single_action_space.shape),
-            dtype=np.float32,
-        )
-    else:
-        full_actions = np.zeros(n_envs, dtype=np.int64)
-
-    while not np.all(finished):
-        active_indices = np.where(~finished)[0]
-
-        active_states = states[active_indices]
-        state_tensor = torch.tensor(active_states, dtype=torch.float32)
-
-        with torch.no_grad():
-            raw_actions = policy.sample_action(state_tensor)
+        finished = np.zeros(n_envs, dtype=bool)
 
         if isinstance(envs.single_action_space, gym.spaces.Box):
-            env_actions = np.clip(
-                raw_actions,
-                envs.single_action_space.low,
-                envs.single_action_space.high,
+            full_actions = np.zeros(
+                (n_envs, *envs.single_action_space.shape),
+                dtype=np.float32,
             )
         else:
-            env_actions = raw_actions
+            full_actions = np.zeros(n_envs, dtype=np.int64)
 
-        full_actions[:] = 0.0
-        full_actions[active_indices] = env_actions
+        while not np.all(finished):
+            active_indices = np.where(~finished)[0]
 
-        next_states, rewards, terminated, truncated, _ = envs.step(full_actions)
+            active_states = states[active_indices]
+            state_tensor = torch.tensor(active_states, dtype=torch.float32)
 
-        dones = np.logical_or(terminated, truncated)
+            with torch.no_grad():
+                raw_actions = policy.sample_action(state_tensor)
 
-        for local_idx, env_idx in enumerate(active_indices):
-            trajectories[env_idx].states.append(states[env_idx].copy())
-            trajectories[env_idx].actions.append(raw_actions[local_idx].copy())
-            trajectories[env_idx].rewards.append(float(rewards[env_idx]))
-            trajectories[env_idx].dones.append(bool(dones[env_idx]))
+            if isinstance(envs.single_action_space, gym.spaces.Box):
+                env_actions = np.clip(
+                    raw_actions,
+                    envs.single_action_space.low,
+                    envs.single_action_space.high,
+                )
+            else:
+                env_actions = raw_actions
 
-            if dones[env_idx]:
-                finished[env_idx] = True
+            if isinstance(envs.single_action_space, gym.spaces.Box):
+                full_actions[:] = 0.0
+            else:
+                full_actions[:] = 0
 
-        states = next_states
+            full_actions[active_indices] = env_actions
 
-    return trajectories
+            next_states, rewards, terminated, truncated, _ = envs.step(full_actions)
+            dones = np.logical_or(terminated, truncated)
+
+            for local_idx, env_idx in enumerate(active_indices):
+                trajectories[env_idx].states.append(states[env_idx].copy())
+                trajectories[env_idx].actions.append(raw_actions[local_idx].copy())
+                trajectories[env_idx].rewards.append(float(rewards[env_idx]))
+                trajectories[env_idx].dones.append(bool(dones[env_idx]))
+
+                if dones[env_idx]:
+                    finished[env_idx] = True
+
+            states = next_states
+
+        all_trajectories.extend(trajectories)
+
+    return all_trajectories

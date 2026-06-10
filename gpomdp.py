@@ -82,7 +82,8 @@ def compute_gpomdp_loss(
     policy,
     trajectories,
     gamma: float,
-    normalize_returns: bool = True,
+    center_returns: bool = True,
+    normalize_returns: bool = False,
     debug: bool = False,
 ):
     """
@@ -96,9 +97,13 @@ def compute_gpomdp_loss(
         gamma=gamma,
     )
 
+    valid_returns = returns[mask.bool()]
+
+    if center_returns:
+        returns = returns - valid_returns.mean()
+
     if normalize_returns:
-        valid_returns = returns[mask.bool()]
-        returns = (returns - valid_returns.mean()) / (
+        returns = returns / (
             valid_returns.std() + 1e-8
         )
 
