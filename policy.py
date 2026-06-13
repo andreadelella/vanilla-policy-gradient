@@ -4,17 +4,17 @@ from torch.distributions import Categorical, Normal
 
 
 class LinearSoftmaxPolicy(nn.Module):
+    # Linear policy for discrete action spaces. Useful as a simple baseline;
+    # expressiveness is limited to linear state-action mappings.
     def __init__(self, state_dim: int, action_dim: int):
         super().__init__()
         self.linear = nn.Linear(state_dim, action_dim, bias=False)
 
     def forward(self, state: torch.Tensor) -> torch.Tensor:
-        logits = self.linear(state)
-        return torch.softmax(logits, dim=-1)
+        return self.linear(state)  # raw logits
 
     def distribution(self, state: torch.Tensor) -> Categorical:
-        probs = self.forward(state)
-        return Categorical(probs)
+        return Categorical(logits=self.forward(state))
 
     def sample_action_tensor(self, state: torch.Tensor) -> torch.Tensor:
         dist = self.distribution(state)
@@ -37,6 +37,8 @@ class LinearSoftmaxPolicy(nn.Module):
 
 
 class MLPSoftmaxPolicy(nn.Module):
+    # MLP policy for discrete action spaces (e.g. CartPole).
+    # Outputs a categorical distribution over actions via a softmax over logits.
     def __init__(self, state_dim: int, action_dim: int, hidden_dim: int = 32):
         super().__init__()
 
@@ -47,12 +49,12 @@ class MLPSoftmaxPolicy(nn.Module):
         )
 
     def forward(self, state: torch.Tensor) -> torch.Tensor:
-        logits = self.net(state)
-        return torch.softmax(logits, dim=-1)
+        return self.net(state)  # raw logits
 
     def distribution(self, state: torch.Tensor) -> Categorical:
-        probs = self.forward(state)
-        return Categorical(probs)
+        # Categorical(logits=...) uses log_softmax internally, which is more
+        # numerically stable than softmax -> log(probs) for large logit spreads.
+        return Categorical(logits=self.forward(state))
 
     def sample_action_tensor(self, state: torch.Tensor) -> torch.Tensor:
         dist = self.distribution(state)
@@ -75,6 +77,10 @@ class MLPSoftmaxPolicy(nn.Module):
 
 
 class GaussianPolicy(nn.Module):
+    # Used for continuous action spaces (e.g. MuJoCo locomotion tasks).
+    # The mean is state-dependent (output of the MLP); log_std is state-independent
+    # (a single learnable vector shared across all states). This is the standard
+    # parameterization for simple policy gradient implementations.
     def __init__(
         self,
         state_dim: int,
@@ -106,6 +112,7 @@ class GaussianPolicy(nn.Module):
         if learn_std:
             self.log_std = nn.Parameter(initial_log_std)
         else:
+            # Fixed exploration noise; kept as a buffer so it moves with the model.
             self.register_buffer("log_std", initial_log_std)
 
     def forward(self, state: torch.Tensor):
@@ -134,4 +141,5 @@ class GaussianPolicy(nn.Module):
             device=state.device,
         )
 
+        # Sum over action dimensions: assumes each coordinate is an independent Gaussian.
         return dist.log_prob(action_tensor).sum(dim=-1)

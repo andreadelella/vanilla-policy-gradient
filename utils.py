@@ -1,5 +1,3 @@
-# utils.py
-
 import os
 import numpy as np
 import matplotlib.pyplot as plt
@@ -8,7 +6,7 @@ from gymnasium.wrappers import RecordVideo
 import torch
 
 
-def plot_training_curves(training_rewards, evaluation_rewards, eval_every, save_dir="plots"):
+def plot_training_curves(training_rewards, save_dir="plots"):
     os.makedirs(save_dir, exist_ok=True)
 
     plt.figure()
@@ -18,17 +16,6 @@ def plot_training_curves(training_rewards, evaluation_rewards, eval_every, save_
     plt.title("Training reward")
     plt.grid(True)
     plt.savefig(os.path.join(save_dir, "training_rewards.png"), dpi=300)
-    plt.close()
-
-    eval_iterations = np.arange(len(evaluation_rewards)) * eval_every
-
-    plt.figure()
-    plt.plot(eval_iterations, evaluation_rewards)
-    plt.xlabel("Iteration")
-    plt.ylabel("Average evaluation return")
-    plt.title("Evaluation reward")
-    plt.grid(True)
-    plt.savefig(os.path.join(save_dir, "evaluation_rewards.png"), dpi=300)
     plt.close()
 
 

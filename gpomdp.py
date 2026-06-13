@@ -1,6 +1,11 @@
 import numpy as np
 import torch
 
+# GPOMDP gradient estimator (Baxter & Bartlett 2001):
+#   ∇J(θ) ≈ (1/N) Σ_i Σ_t G_{i,t} · ∇ log π_θ(a_{i,t} | s_{i,t})
+# where G_{i,t} = Σ_{k>=t} γ^{k-t} r_{i,k} is the discounted return from step t.
+# This is an unbiased estimator of the policy gradient via the score function trick.
+
 
 def compute_discounted_returns_matrix(
     rewards: torch.Tensor,
@@ -11,19 +16,15 @@ def compute_discounted_returns_matrix(
 
     returns[n, t] = r[n, t] + gamma * r[n, t+1] + ...
     """
-
-    returns = torch.zeros_like(rewards)
-    running_return = torch.zeros(
-        rewards.shape[0],
-        dtype=rewards.dtype,
-        device=rewards.device,
-    )
-
-    for t in reversed(range(rewards.shape[1])):
-        running_return = rewards[:, t] + gamma * running_return
-        returns[:, t] = running_return
-
-    return returns
+    # Vectorised via the scaling identity:
+    #   G_{n,t} = (1/γ^t) * reverse_cumsum(r_{n,k} * γ^k)
+    # Three tensor ops on [N, T] instead of T Python loop iterations.
+    T = rewards.shape[1]
+    powers = gamma ** torch.arange(T, dtype=rewards.dtype, device=rewards.device)
+    scaled = rewards * powers.unsqueeze(0)
+    returns = scaled.flip(1).cumsum(1).flip(1)
+    # clamp avoids 0/0 when gamma=0 (padded positions already have scaled=0)
+    return returns / torch.clamp(powers, min=1e-8).unsqueeze(0)
 
 
 def trajectories_to_tensors(trajectories):
@@ -35,6 +36,8 @@ def trajectories_to_tensors(trajectories):
     rewards: [N, T_max]
     mask:    [N, T_max]
     """
+    # Episodes can end at different timesteps; we pad to the longest one and use
+    # a binary mask to exclude padding positions from gradient computation.
 
     n_trajectories = len(trajectories)
     max_len = max(len(traj.rewards) for traj in trajectories)
@@ -100,6 +103,8 @@ def compute_gpomdp_loss(
     valid_returns = returns[mask.bool()]
 
     if center_returns:
+        # Subtract the mean return as a state-independent baseline.
+        # Reduces gradient variance without introducing bias (Williams 1992).
         returns = returns - valid_returns.mean()
 
     if normalize_returns:

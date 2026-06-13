@@ -18,6 +18,7 @@ def collect_parallel_trajectories(
     envs,
     policy,
     n_trajectories_per_env: int = 1,
+    clip_actions: bool = True,
 ) -> List[Trajectory]:
     """
     Collect n_trajectories_per_env complete episodes from each environment.
@@ -57,7 +58,7 @@ def collect_parallel_trajectories(
             with torch.no_grad():
                 raw_actions = policy.sample_action(state_tensor)
 
-            if isinstance(envs.single_action_space, gym.spaces.Box):
+            if clip_actions and isinstance(envs.single_action_space, gym.spaces.Box):
                 env_actions = np.clip(
                     raw_actions,
                     envs.single_action_space.low,
@@ -71,6 +72,8 @@ def collect_parallel_trajectories(
             else:
                 full_actions[:] = 0
 
+            # AsyncVectorEnv requires stepping all envs simultaneously.
+            # Finished envs receive a dummy action (zero); their transitions are discarded below.
             full_actions[active_indices] = env_actions
 
             next_states, rewards, terminated, truncated, _ = envs.step(full_actions)

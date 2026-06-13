@@ -15,6 +15,7 @@ def parse_hidden_sizes(value: str):
 
 def build_config(args):
     return {
+        "output_dir": args.output_dir,
         "run_mode": args.run_mode,
 
         "env_id": args.env_id,
@@ -28,7 +29,7 @@ def build_config(args):
 
         "gamma": args.gamma,
         "lr": args.lr,
-    
+
         "center_returns": str_to_bool(args.center_returns),
         "normalize_returns": str_to_bool(args.normalize_returns),
         "clip_actions": str_to_bool(args.clip_actions),
@@ -38,9 +39,6 @@ def build_config(args):
 
         "init_log_std": args.init_log_std,
         "learn_std": str_to_bool(args.learn_std),
-
-        "eval_every": args.eval_every,
-        "n_eval_episodes": args.n_eval_episodes,
 
         "save_plots": str_to_bool(args.save_plots),
         "record_video": str_to_bool(args.record_video),
@@ -52,66 +50,149 @@ def main_run():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
 
-    parser.add_argument("--dir", type=str, default="runs")
-    parser.add_argument("--config_name", type=str, default="run_config.json")
-
+    parser.add_argument(
+        "--output_dir",
+        type=str,
+        default="runs",
+        help="Directory where all outputs are saved (config, plots, videos).",
+    )
     parser.add_argument(
         "--run_mode",
         type=str,
         default="single",
         choices=["single", "multiseed"],
+        help="'single' trains one seed; 'multiseed' loops over --seeds and produces CI plots.",
     )
 
-    parser.add_argument("--env_id", type=str, default="CartPole-v1")
-    parser.add_argument("--seed", type=int, default=23)
+    parser.add_argument(
+        "--env_id",
+        type=str,
+        default="CartPole-v1",
+        help="Gymnasium environment ID. Continuous spaces use a Gaussian policy; discrete use softmax MLP.",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=23,
+        help="Random seed for single-seed runs.",
+    )
     parser.add_argument(
         "--seeds",
         type=int,
         nargs="+",
         default=[23, 24, 25, 26, 27],
+        help="List of seeds for multiseed runs.",
     )
 
-    parser.add_argument("--n_iterations", type=int, default=2000)
-    parser.add_argument("--n_envs", type=int, default=16)
-    parser.add_argument("--n_trajectories", type=int, default=1)
-    parser.add_argument("--horizon", type=int, default=200)
+    parser.add_argument(
+        "--n_iterations",
+        type=int,
+        default=2000,
+        help="Number of policy gradient update steps.",
+    )
+    parser.add_argument(
+        "--n_envs",
+        type=int,
+        default=16,
+        help="Number of parallel environments. Total batch size = n_envs * n_trajectories.",
+    )
+    parser.add_argument(
+        "--n_trajectories",
+        type=int,
+        default=1,
+        help="Episodes collected per environment per iteration.",
+    )
+    parser.add_argument(
+        "--horizon",
+        type=int,
+        default=200,
+        help="Maximum episode length. 0 uses the environment default.",
+    )
 
-    parser.add_argument("--gamma", type=float, default=0.99)
-    parser.add_argument("--lr", type=float, default=1e-4)
+    parser.add_argument(
+        "--gamma",
+        type=float,
+        default=0.99,
+        help="Discount factor γ ∈ (0, 1]. Controls down-weighting of future rewards.",
+    )
+    parser.add_argument(
+        "--lr",
+        type=float,
+        default=1e-4,
+        help="Adam learning rate.",
+    )
 
-    parser.add_argument("--center_returns", type=int, default=1, choices=[0, 1])
-    parser.add_argument("--normalize_returns", type=int, default=0, choices=[0, 1])
-    parser.add_argument("--clip_actions", type=int, default=1, choices=[0, 1])
+    parser.add_argument(
+        "--center_returns",
+        type=int,
+        default=1,
+        choices=[0, 1],
+        help="Subtract mean return (baseline trick). Reduces gradient variance without bias.",
+    )
+    parser.add_argument(
+        "--normalize_returns",
+        type=int,
+        default=0,
+        choices=[0, 1],
+        help="Divide returns by their std. Further reduces variance; can destabilize early training.",
+    )
+    parser.add_argument(
+        "--clip_actions",
+        type=int,
+        default=1,
+        choices=[0, 1],
+        help="Clip continuous actions to the environment's action bounds before stepping.",
+    )
 
     parser.add_argument(
         "--hidden_sizes",
         type=str,
         default="8,8",
-        help="Comma-separated hidden sizes, e.g. 8,8 or 64,64.",
+        help="Hidden layer sizes for the Gaussian policy (continuous envs). Comma-separated, e.g. '64,64'.",
     )
     parser.add_argument(
         "--hidden_dim",
         type=int,
         default=32,
-        help="Used only by the current discrete MLP policy.",
+        help="Hidden layer size for the softmax MLP policy (discrete envs).",
     )
 
-    parser.add_argument("--init_log_std", type=float, default=-0.5)
-    parser.add_argument("--learn_std", type=int, default=1, choices=[0, 1])
+    parser.add_argument(
+        "--init_log_std",
+        type=float,
+        default=-0.5,
+        help="Initial log std of the Gaussian policy (σ ≈ 0.6). Controls initial exploration noise.",
+    )
+    parser.add_argument(
+        "--learn_std",
+        type=int,
+        default=1,
+        choices=[0, 1],
+        help="1: log_std is a learnable parameter. 0: kept fixed at init_log_std.",
+    )
 
-    parser.add_argument("--eval_every", type=int, default=5)
-    parser.add_argument("--n_eval_episodes", type=int, default=5)
-
-    parser.add_argument("--save_plots", type=int, default=1, choices=[0, 1])
-    parser.add_argument("--record_video", type=int, default=0, choices=[0, 1])
+    parser.add_argument(
+        "--save_plots",
+        type=int,
+        default=1,
+        choices=[0, 1],
+        help="Save reward plots to output_dir.",
+    )
+    parser.add_argument(
+        "--record_video",
+        type=int,
+        default=0,
+        choices=[0, 1],
+        help="Record a video of the trained policy and save to output_dir/videos/.",
+    )
 
     args = parser.parse_args()
 
-    os.makedirs(args.dir, exist_ok=True)
+    os.makedirs(args.output_dir, exist_ok=True)
 
     cfg = build_config(args)
 
-    config_path = os.path.join(args.dir, args.config_name)
+    config_path = os.path.join(args.output_dir, "config.json")
 
     with open(config_path, "w") as f:
         json.dump(cfg, f, indent=2)

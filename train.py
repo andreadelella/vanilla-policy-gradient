@@ -20,6 +20,8 @@ def load_config(path="config.json"):
 
 
 def make_env(env_id: str, seed: int | None, horizon: int | None = None):
+    # AsyncVectorEnv requires a factory (thunk) rather than an env instance
+    # so each worker can construct its own isolated copy.
     def thunk():
         env = gym.make(env_id)
 
@@ -37,41 +39,16 @@ def make_env(env_id: str, seed: int | None, horizon: int | None = None):
     return thunk
 
 
-def evaluate_policy(env, policy, n_episodes=5, seed=None):
-    episode_rewards = []
-
-    for i in range(n_episodes):
-        eval_seed = None if seed is None else seed + i
-
-        state, _ = env.reset(seed=eval_seed)
-        done = False
-        total_reward = 0.0
-
-        while not done:
-            state_tensor = torch.tensor(state, dtype=torch.float32)
-
-            with torch.no_grad():
-                action = policy.sample_action(state_tensor)
-
-            next_state, reward, terminated, truncated, _ = env.step(action)
-            done = terminated or truncated
-
-            total_reward += reward
-            state = next_state
-
-        episode_rewards.append(total_reward)
-
-    return float(np.mean(episode_rewards))
-
-
 def run_single_training(config_path="config.json"):
     cfg = load_config(config_path)
+
+    output_dir = cfg.get("output_dir", "runs")
+    os.makedirs(output_dir, exist_ok=True)
 
     torch.manual_seed(cfg["seed"])
     np.random.seed(cfg["seed"])
 
     env = gym.make(cfg["env_id"])
-    eval_env = gym.make(cfg["env_id"])
 
     state_dim = env.observation_space.shape[0]
 
@@ -112,7 +89,8 @@ def run_single_training(config_path="config.json"):
     train_envs = gym.vector.AsyncVectorEnv(env_fns)
 
     training_rewards = []
-    evaluation_rewards = []
+    best_reward = float("-inf")
+    best_state_dict = None
 
     training_start = time.perf_counter()
 
@@ -124,6 +102,7 @@ def run_single_training(config_path="config.json"):
                 envs=train_envs,
                 policy=policy,
                 n_trajectories_per_env=cfg["n_trajectories"],
+                clip_actions=cfg.get("clip_actions", True),
             )
 
             t1 = time.perf_counter()
@@ -159,36 +138,24 @@ def run_single_training(config_path="config.json"):
 
             training_rewards.append(batch_reward)
 
-            if iteration % cfg["eval_every"] == 0:
-                eval_start = time.perf_counter()
+            # Track the checkpoint with the highest training return for video recording.
+            if batch_reward > best_reward:
+                best_reward = batch_reward
+                best_state_dict = {k: v.cpu().clone() for k, v in policy.state_dict().items()}
 
-                eval_reward = evaluate_policy(
-                    env=eval_env,
-                    policy=policy,
-                    n_episodes=cfg["n_eval_episodes"],
-                    seed=cfg["seed"] + 10_000 + iteration,
-                )
-
-                eval_time = time.perf_counter() - eval_start
-                evaluation_rewards.append(eval_reward)
-
-                total_time = iteration_time + eval_time
-
-                print(
-                    f"Iteration {iteration:04d} | "
-                    f"train reward: {batch_reward:.2f} | "
-                    f"eval reward: {eval_reward:.2f} | "
-                    f"eval time: {eval_time:.3f}s | "
-                    f"rollout: {rollout_time:.3f}s | "
-                    f"update: {update_time:.3f}s | "
-                    f"total: {total_time:.3f}s | "
-                    f"samples/s: {samples_per_sec:.0f}"
-                )
+            print(
+                f"Iteration {iteration:04d} | "
+                f"train reward: {batch_reward:.2f} | "
+                f"best: {best_reward:.2f} | "
+                f"rollout: {rollout_time:.3f}s | "
+                f"update: {update_time:.3f}s | "
+                f"total: {iteration_time:.3f}s | "
+                f"samples/s: {samples_per_sec:.0f}"
+            )
 
     finally:
         train_envs.close()
         env.close()
-        eval_env.close()
 
     training_time = time.perf_counter() - training_start
     print(f"training time {training_time:.2f}s")
@@ -196,19 +163,21 @@ def run_single_training(config_path="config.json"):
     if cfg.get("save_plots", True):
         plot_training_curves(
             training_rewards=training_rewards,
-            evaluation_rewards=evaluation_rewards,
-            eval_every=cfg["eval_every"],
+            save_dir=output_dir,
         )
 
     if cfg.get("record_video", False):
+        # Restore the best weights found during training before recording.
+        if best_state_dict is not None:
+            policy.load_state_dict(best_state_dict)
         record_policy_video(
             env_id=cfg["env_id"],
             policy=policy,
-            video_dir="videos",
+            video_dir=os.path.join(output_dir, "videos"),
             seed=cfg["seed"] + 20_000,
         )
 
-    return policy, training_rewards, evaluation_rewards
+    return policy, training_rewards
 
 
 def mean_confidence_interval(data, confidence_z=1.96):
@@ -246,10 +215,10 @@ def run_multiseed(config_path="config.json"):
     base_cfg = load_config(config_path)
     seeds = base_cfg.get("seeds", [base_cfg["seed"]])
 
-    os.makedirs("multiseed_results", exist_ok=True)
+    output_dir = base_cfg.get("output_dir", "runs")
+    os.makedirs(output_dir, exist_ok=True)
 
     all_training_rewards = []
-    all_evaluation_rewards = []
 
     for seed in seeds:
         print(f"\n========== Running seed {seed} ==========")
@@ -257,41 +226,27 @@ def run_multiseed(config_path="config.json"):
         cfg = dict(base_cfg)
         cfg["seed"] = seed
         cfg["record_video"] = False
+        cfg["save_plots"] = False  # CI plot is produced once after all seeds finish
 
-        temp_config_path = f"multiseed_results/config_seed_{seed}.json"
+        seed_config_path = os.path.join(output_dir, f"config_seed_{seed}.json")
 
-        with open(temp_config_path, "w") as f:
+        with open(seed_config_path, "w") as f:
             json.dump(cfg, f, indent=2)
 
-        _, training_rewards, evaluation_rewards = run_single_training(temp_config_path)
+        _, training_rewards = run_single_training(seed_config_path)
 
         all_training_rewards.append(training_rewards)
-        all_evaluation_rewards.append(evaluation_rewards)
 
     all_training_rewards = np.asarray(all_training_rewards, dtype=np.float32)
-    all_evaluation_rewards = np.asarray(all_evaluation_rewards, dtype=np.float32)
 
-    np.save("multiseed_results/training_rewards.npy", all_training_rewards)
-    np.save("multiseed_results/evaluation_rewards.npy", all_evaluation_rewards)
+    np.save(os.path.join(output_dir, "training_rewards.npy"), all_training_rewards)
 
     plot_ci(
         curves=all_training_rewards,
         title="Training reward across seeds",
         ylabel="Average training return",
         xlabel="Iteration",
-        save_path="multiseed_results/training_rewards_ci.png",
-    )
-
-    eval_every = base_cfg["eval_every"]
-    eval_x = np.arange(all_evaluation_rewards.shape[1]) * eval_every
-
-    plot_ci(
-        curves=all_evaluation_rewards,
-        title="Evaluation reward across seeds",
-        ylabel="Average evaluation return",
-        xlabel="Iteration",
-        save_path="multiseed_results/evaluation_rewards_ci.png",
-        x_values=eval_x,
+        save_path=os.path.join(output_dir, "training_rewards_ci.png"),
     )
 
 
