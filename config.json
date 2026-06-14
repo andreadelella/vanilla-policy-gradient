@@ -1,29 +1,31 @@
 {
+  "output_dir": "runs/CartPole-v1",
+  "scored_checkpoints": true,
+  "run_mode": "single",
+
   "env_id": "CartPole-v1",
-
   "seed": 23,
+  "seeds": [23, 24, 25, 26, 27],
 
-  "n_iterations": 100,
-  "n_envs": 1,
+  "n_iterations": 500,
+  "n_envs": 16,
   "n_trajectories": 1,
-  "horizon": 100,
+  "horizon": 200,
 
   "gamma": 0.99,
-  "lr": 0.0001,
+  "lr": 1e-3,
 
   "center_returns": true,
   "normalize_returns": false,
   "clip_actions": true,
 
-  "hidden_sizes": [8, 8],
+  "hidden_sizes": [32, 32],
+  "hidden_dim": 32,
+
   "init_log_std": -0.5,
   "learn_std": true,
 
-  "eval_every": 5,
-  "n_eval_episodes": 5,
-
-  "run_mode": "multiseed",
-  "seeds": [23, 24, 25, 26, 27],
   "save_plots": true,
-  "record_video": true
+  "save_checkpoints": true,
+  "record_video": false
 }

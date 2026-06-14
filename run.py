@@ -15,7 +15,6 @@ def parse_hidden_sizes(value: str):
 
 def build_config(args):
     return {
-        "output_dir": args.output_dir,
         "run_mode": args.run_mode,
 
         "env_id": args.env_id,
@@ -41,6 +40,7 @@ def build_config(args):
         "learn_std": str_to_bool(args.learn_std),
 
         "save_plots": str_to_bool(args.save_plots),
+        "save_checkpoints": str_to_bool(args.save_checkpoints),
         "record_video": str_to_bool(args.record_video),
     }
 
@@ -53,8 +53,8 @@ def main_run():
     parser.add_argument(
         "--output_dir",
         type=str,
-        default="runs",
-        help="Directory where all outputs are saved (config, plots, videos).",
+        default=None,
+        help="Directory where all outputs are saved. Defaults to runs/<env_id>/.",
     )
     parser.add_argument(
         "--run_mode",
@@ -179,6 +179,13 @@ def main_run():
         help="Save reward plots to output_dir.",
     )
     parser.add_argument(
+        "--save_checkpoints",
+        type=int,
+        default=1,
+        choices=[0, 1],
+        help="Save best and final policy weights to output_dir/checkpoints/.",
+    )
+    parser.add_argument(
         "--record_video",
         type=int,
         default=0,
@@ -188,11 +195,18 @@ def main_run():
 
     args = parser.parse_args()
 
-    os.makedirs(args.output_dir, exist_ok=True)
+    # Auto-generate output dir when the user did not specify one.
+    # The scored_checkpoints flag makes checkpoint filenames include the return value.
+    output_dir_specified = args.output_dir is not None
+    output_dir = args.output_dir if output_dir_specified else os.path.join("runs", args.env_id)
+
+    os.makedirs(output_dir, exist_ok=True)
 
     cfg = build_config(args)
+    cfg["output_dir"] = output_dir
+    cfg["scored_checkpoints"] = not output_dir_specified
 
-    config_path = os.path.join(args.output_dir, "config.json")
+    config_path = os.path.join(output_dir, "config.json")
 
     with open(config_path, "w") as f:
         json.dump(cfg, f, indent=2)

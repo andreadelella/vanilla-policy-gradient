@@ -25,10 +25,15 @@ def record_policy_video(
     video_dir="videos",
     episode_trigger=lambda episode_id: True,
     seed=23,
+    horizon=None,
 ):
     os.makedirs(video_dir, exist_ok=True)
 
     env = gym.make(env_id, render_mode="rgb_array")
+
+    # Apply the same horizon used during training so the video length is consistent.
+    if horizon is not None and horizon > 0:
+        env = gym.wrappers.TimeLimit(env, max_episode_steps=horizon)
 
     env = RecordVideo(
         env,

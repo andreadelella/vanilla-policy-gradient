@@ -39,9 +39,7 @@ def make_env(env_id: str, seed: int | None, horizon: int | None = None):
     return thunk
 
 
-def run_single_training(config_path="config.json"):
-    cfg = load_config(config_path)
-
+def run_single_training(cfg: dict):
     output_dir = cfg.get("output_dir", "runs")
     os.makedirs(output_dir, exist_ok=True)
 
@@ -166,6 +164,17 @@ def run_single_training(config_path="config.json"):
             save_dir=output_dir,
         )
 
+    if cfg.get("save_checkpoints", True):
+        checkpoint_dir = os.path.join(output_dir, "checkpoints")
+        os.makedirs(checkpoint_dir, exist_ok=True)
+        scored = cfg.get("scored_checkpoints", False)
+        if best_state_dict is not None:
+            best_name = f"best_{best_reward:.1f}.pt" if scored else "best.pt"
+            torch.save(best_state_dict, os.path.join(checkpoint_dir, best_name))
+        final_score = training_rewards[-1] if training_rewards else 0.0
+        final_name = f"final_{final_score:.1f}.pt" if scored else "final.pt"
+        torch.save(policy.state_dict(), os.path.join(checkpoint_dir, final_name))
+
     if cfg.get("record_video", False):
         # Restore the best weights found during training before recording.
         if best_state_dict is not None:
@@ -175,6 +184,7 @@ def run_single_training(config_path="config.json"):
             policy=policy,
             video_dir=os.path.join(output_dir, "videos"),
             seed=cfg["seed"] + 20_000,
+            horizon=cfg.get("horizon", None),
         )
 
     return policy, training_rewards
@@ -211,11 +221,9 @@ def plot_ci(curves, title, ylabel, xlabel, save_path, x_values=None):
     plt.close()
 
 
-def run_multiseed(config_path="config.json"):
-    base_cfg = load_config(config_path)
-    seeds = base_cfg.get("seeds", [base_cfg["seed"]])
-
-    output_dir = base_cfg.get("output_dir", "runs")
+def run_multiseed(cfg: dict):
+    seeds = cfg.get("seeds", [cfg["seed"]])
+    output_dir = cfg.get("output_dir", "runs")
     os.makedirs(output_dir, exist_ok=True)
 
     all_training_rewards = []
@@ -223,19 +231,15 @@ def run_multiseed(config_path="config.json"):
     for seed in seeds:
         print(f"\n========== Running seed {seed} ==========")
 
-        cfg = dict(base_cfg)
-        cfg["seed"] = seed
-        cfg["record_video"] = False
-        cfg["save_plots"] = False  # CI plot is produced once after all seeds finish
+        seed_cfg = dict(cfg)
+        seed_cfg["seed"] = seed
+        seed_cfg["record_video"] = False
+        seed_cfg["save_plots"] = False        # CI plot is produced once after all seeds finish
+        seed_cfg["save_checkpoints"] = False  # checkpoints per seed would overwrite each other
 
-        seed_config_path = os.path.join(output_dir, f"config_seed_{seed}.json")
+        _, seed_rewards = run_single_training(seed_cfg)
 
-        with open(seed_config_path, "w") as f:
-            json.dump(cfg, f, indent=2)
-
-        _, training_rewards = run_single_training(seed_config_path)
-
-        all_training_rewards.append(training_rewards)
+        all_training_rewards.append(seed_rewards)
 
     all_training_rewards = np.asarray(all_training_rewards, dtype=np.float32)
 
@@ -255,10 +259,10 @@ def main(config_path="config.json"):
     run_mode = cfg.get("run_mode", "single")
 
     if run_mode == "single":
-        return run_single_training(config_path)
+        return run_single_training(cfg)
 
     if run_mode == "multiseed":
-        return run_multiseed(config_path)
+        return run_multiseed(cfg)
 
     raise ValueError(f"Unknown run_mode: {run_mode}")
 

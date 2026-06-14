@@ -2,6 +2,7 @@
 *.png
 *.mp4
 *.npy
+*.pt
 
 .venv/
 __pycache__/

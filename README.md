@@ -84,7 +84,8 @@ python run.py --env_id CartPole-v1 --record_video 1 --output_dir results/cartpol
 | `--init_log_std` | `-0.5` | Initial log standard deviation of the Gaussian policy. Corresponds to σ ≈ 0.6 at start. |
 | `--learn_std` | `1` | If `1`, the log standard deviation is a learnable parameter. If `0`, it stays fixed at `init_log_std`. |
 | `--save_plots` | `1` | Save training reward plots to `output_dir`. |
-| `--record_video` | `0` | Record a video of the trained policy and save it to `output_dir/videos/`. |
+| `--save_checkpoints` | `1` | Save `best.pt` and `final.pt` to `output_dir/checkpoints/`. |
+| `--record_video` | `0` | Record a video of the best policy and save it to `output_dir/videos/`. |
 
 ## Outputs
 
@@ -96,7 +97,9 @@ All outputs are written to `--output_dir` (default: `runs/`).
 | `training_rewards.png` | single mode | Per-iteration mean return over the training batch. |
 | `training_rewards_ci.png` | multiseed mode | Mean training return ± 95 % CI across seeds. |
 | `training_rewards.npy` | multiseed mode | Raw per-seed training curves, shape `[n_seeds, n_iterations]`. |
-| `videos/` | `--record_video 1` | MP4 of the best policy found during training. |
+| `checkpoints/best.pt` | `--save_checkpoints 1` | Weights of the policy with the highest training return seen during learning. |
+| `checkpoints/final.pt` | `--save_checkpoints 1` | Weights of the policy at the end of training. |
+| `videos/` | `--record_video 1` | MP4 of the best policy found during training, capped at `--horizon` steps. |
 | `config_seed_<n>.json` | multiseed mode | Per-seed config snapshot. |
 
 ### Training rewards
