@@ -42,13 +42,13 @@ All experiments are launched via `run.py`.
 ### Single-seed run
 
 ```bash
-python run.py --env_id CartPole-v1 --output_dir results/cartpole
+python3 run.py --env_id CartPole-v1 --output_dir results/cartpole
 ```
 
 ### Multi-seed run (with confidence intervals)
 
 ```bash
-python run.py \
+python3 run.py \
     --run_mode multiseed \
     --env_id Hopper-v5 \
     --seeds 0 1 2 3 4 \
@@ -58,7 +58,7 @@ python run.py \
 ### Record a video of the trained policy
 
 ```bash
-python run.py --env_id CartPole-v1 --record_video 1 --output_dir results/cartpole
+python3 run.py --env_id CartPole-v1 --record_video 1 --output_dir results/cartpole
 ```
 
 ## Hyperparameters
