@@ -45,6 +45,41 @@ def build_config(args):
     }
 
 
+# Keys computed by run.py — must not be overridden by config.json.
+_SKIP_FROM_FILE = {"output_dir", "scored_checkpoints"}
+
+# Config keys stored as JSON booleans but argparse expects a 0/1 int.
+_BOOL_KEYS = {
+    "center_returns", "normalize_returns", "clip_actions",
+    "learn_std", "save_plots", "save_checkpoints", "record_video",
+}
+
+
+def _apply_file_config(parser, config_path="config.json"):
+    """Promote config.json values to argparse defaults.
+
+    Priority: hardcoded defaults < config.json < CLI arguments.
+    """
+    if not os.path.exists(config_path):
+        return
+
+    with open(config_path) as f:
+        file_cfg = json.load(f)
+
+    overrides = {}
+    for k, v in file_cfg.items():
+        if k in _SKIP_FROM_FILE:
+            continue
+        if k == "hidden_sizes":
+            overrides[k] = ",".join(str(x) for x in v)
+        elif k in _BOOL_KEYS:
+            overrides[k] = int(bool(v))
+        else:
+            overrides[k] = v
+
+    parser.set_defaults(**overrides)
+
+
 def main_run():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
@@ -192,6 +227,9 @@ def main_run():
         choices=[0, 1],
         help="Record a video of the trained policy and save to output_dir/videos/.",
     )
+
+    # Apply config.json values as defaults before parsing CLI arguments.
+    _apply_file_config(parser)
 
     args = parser.parse_args()
 
