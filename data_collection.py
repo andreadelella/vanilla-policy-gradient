@@ -53,9 +53,9 @@ def collect_parallel_trajectories(
             active_indices = np.where(~finished)[0]
 
             active_states = states[active_indices]
-            state_tensor = torch.tensor(active_states, dtype=torch.float32)
+            state_tensor = torch.tensor(active_states, dtype=torch.float32)  # all active states in one batch
 
-            with torch.no_grad():
+            with torch.no_grad():  # no autograd graph needed during rollouts
                 raw_actions = policy.sample_action(state_tensor)
 
             if clip_actions and isinstance(envs.single_action_space, gym.spaces.Box):

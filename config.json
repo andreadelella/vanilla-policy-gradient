@@ -1,5 +1,5 @@
 {
-  "output_dir": "runs/CartPole-v1",
+  "output_dir": "runs/CartPole-v1/NPG",
   "scored_checkpoints": true,
   "run_mode": "single",
 
@@ -7,16 +7,20 @@
   "seed": 23,
   "seeds": [23, 24, 25, 26, 27],
 
-  "n_iterations": 500,
+  "n_iterations": 200,
   "n_envs": 16,
   "n_trajectories": 1,
   "horizon": 200,
 
   "gamma": 0.99,
   "lr": 1e-3,
+  "lr_npg": 0.01,
+  "use_npg": false,
+  "npg_damping": 0.01,
+  "entropy_coeff": 0.01,
 
   "center_returns": true,
-  "normalize_returns": false,
+  "normalize_returns": true,
   "clip_actions": true,
 
   "hidden_sizes": [32, 32],
@@ -27,5 +31,5 @@
 
   "save_plots": true,
   "save_checkpoints": true,
-  "record_video": false
+  "record_video": true
 }

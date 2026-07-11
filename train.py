@@ -11,7 +11,7 @@ import torch
 from utils import plot_training_curves, record_policy_video
 from data_collection import collect_parallel_trajectories
 from policy import GaussianPolicy, MLPSoftmaxPolicy
-from gpomdp import compute_gpomdp_loss
+from gpomdp import compute_gpomdp_loss, apply_npg_preconditioning
 
 
 def load_config(path="config.json"):
@@ -73,7 +73,10 @@ def run_single_training(cfg: dict):
     else:
         raise ValueError(f"Unsupported action space: {env.action_space}")
 
-    optimizer = torch.optim.Adam(policy.parameters(), lr=cfg["lr"])
+    if cfg.get("use_npg", False):
+        optimizer = torch.optim.SGD(policy.parameters(), lr=cfg["lr"])
+    else:
+        optimizer = torch.optim.Adam(policy.parameters(), lr=cfg["lr"])
 
     env_fns = [
         make_env(
@@ -84,6 +87,7 @@ def run_single_training(cfg: dict):
         for i in range(cfg["n_envs"])
     ]
 
+    # Rollout collection is the dominant wall-clock cost; N workers run concurrently to amortise it.
     train_envs = gym.vector.AsyncVectorEnv(env_fns)
 
     training_rewards = []
@@ -119,10 +123,20 @@ def run_single_training(cfg: dict):
                 gamma=cfg["gamma"],
                 center_returns=cfg["center_returns"],
                 normalize_returns=cfg["normalize_returns"],
+                entropy_coeff=cfg.get("entropy_coeff", 0.0),
                 debug=debug,
             )
 
             loss.backward()
+
+            if cfg.get("use_npg", False):
+                apply_npg_preconditioning(
+                    policy=policy,
+                    trajectories=trajectories,
+                    damping=cfg.get("npg_damping", 1e-2),
+                    debug=debug,
+                )
+
             optimizer.step()
 
             t2 = time.perf_counter()
@@ -136,7 +150,6 @@ def run_single_training(cfg: dict):
 
             training_rewards.append(batch_reward)
 
-            # Track the checkpoint with the highest training return for video recording.
             if batch_reward > best_reward:
                 best_reward = batch_reward
                 best_state_dict = {k: v.cpu().clone() for k, v in policy.state_dict().items()}
@@ -157,6 +170,8 @@ def run_single_training(cfg: dict):
 
     training_time = time.perf_counter() - training_start
     print(f"training time {training_time:.2f}s")
+
+    np.save(os.path.join(output_dir, "training_rewards.npy"), np.array([training_rewards], dtype=np.float32))
 
     if cfg.get("save_plots", True):
         plot_training_curves(
@@ -184,7 +199,6 @@ def run_single_training(cfg: dict):
             policy=policy,
             video_dir=os.path.join(output_dir, "videos"),
             seed=cfg["seed"] + 20_000,
-            horizon=cfg.get("horizon", None),
         )
 
     return policy, training_rewards
