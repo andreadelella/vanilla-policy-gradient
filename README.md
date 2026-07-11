@@ -23,7 +23,6 @@ An entropy bonus (`--entropy_coeff`) prevents policy collapse on Adam.
 This removes the dependence on the parameter scale, making NPG significantly more sample-efficient than vanilla GPOMDP in practice.
 
 The repository also includes:
-- an eligibility-trace form of the estimator ([gpomdp_elig_traces.py](gpomdp_elig_traces.py)) — equivalent to the batched version for β = γ.
 - a standalone environment wrapper ([env_wrappers.py](env_wrappers.py)) for single-env experimentation outside the vectorised loop.
 
 ## Installation
@@ -83,6 +82,10 @@ python3 run.py --env_id CartPole-v1 --record_video 1
 
 ## Hyperparameters
 
+Defaults below are `run.py`'s hardcoded argparse defaults (what you get with no `config.json`
+present). The `config.json` checked into this repo overrides several of them — see
+[Usage](#usage) for the priority order (hardcoded < `config.json` < CLI flags).
+
 | Argument | Default | Description |
 |---|---|---|
 | `--output_dir` | `runs/<env_id>/` | Directory where all outputs are saved. Auto-named from env if not set. |
@@ -90,20 +93,20 @@ python3 run.py --env_id CartPole-v1 --record_video 1
 | `--env_id` | `CartPole-v1` | Gymnasium environment ID. Continuous action spaces use a Gaussian policy; discrete use a softmax MLP. |
 | `--seed` | `23` | Random seed for single-seed runs. |
 | `--seeds` | `23 24 25 26 27` | List of seeds for multiseed runs. |
-| `--n_iterations` | `500` | Number of policy gradient update steps. |
+| `--n_iterations` | `2000` | Number of policy gradient update steps. |
 | `--n_envs` | `16` | Number of parallel environments. Total trajectories per iteration = `n_envs × n_trajectories`. |
 | `--n_trajectories` | `1` | Number of episodes collected per environment per iteration. |
 | `--horizon` | `200` | Maximum episode length (truncates via `TimeLimit` wrapper). Set to `0` to use the environment default. |
 | `--gamma` | `0.99` | Discount factor γ ∈ (0, 1]. |
 | `--algorithms` | `gpomdp` | Algorithm(s) to run: `gpomdp` (Adam) or `npg` (SGD + Fisher preconditioning). Pass both to trigger comparison mode. |
-| `--lr` | `1e-3` | Learning rate for GPOMDP (Adam optimizer). |
-| `--lr_npg` | `0.01` | Learning rate for NPG (SGD optimizer). Defaults to `--lr` if not set. |
+| `--lr` | `1e-4` | Learning rate for GPOMDP (Adam optimizer). |
+| `--lr_npg` | `None` | Learning rate for NPG (SGD optimizer). Defaults to `--lr` if not set. |
 | `--npg_damping` | `0.01` | Tikhonov damping λ added to the Fisher diagonal: `(F + λI)⁻¹`. Increase if the linear solve fails. |
 | `--entropy_coeff` | `0.01` | Entropy bonus coefficient. Adds `entropy_coeff · H[π]` to the objective to prevent policy collapse. |
 | `--center_returns` | `1` | Subtract the mean return from all returns (baseline trick). Reduces gradient variance without bias. |
-| `--normalize_returns` | `1` | Divide returns by their standard deviation. Further reduces variance. |
+| `--normalize_returns` | `0` | Divide returns by their standard deviation. Further reduces variance. |
 | `--clip_actions` | `1` | Clip continuous actions to the environment's action bounds before stepping. |
-| `--hidden_sizes` | `32,32` | Hidden layer sizes for the Gaussian policy (continuous envs). Comma-separated, e.g. `64,64`. |
+| `--hidden_sizes` | `8,8` | Hidden layer sizes for the Gaussian policy (continuous envs). Comma-separated, e.g. `64,64`. |
 | `--hidden_dim` | `32` | Hidden layer size for the softmax MLP policy (discrete envs). |
 | `--init_log_std` | `-0.5` | Initial log standard deviation of the Gaussian policy (σ ≈ 0.6). |
 | `--learn_std` | `1` | If `1`, log std is a learnable parameter. If `0`, it is fixed at `init_log_std`. |

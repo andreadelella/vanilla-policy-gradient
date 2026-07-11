@@ -32,7 +32,11 @@ def compute_discounted_returns_matrix(
     powers = gamma ** torch.arange(T, dtype=rewards.dtype, device=rewards.device)
     scaled = rewards * powers.unsqueeze(0)
     returns = scaled.flip(1).cumsum(1).flip(1)
-    # clamp avoids 0/0 when gamma=0 (padded positions already have scaled=0)
+    # clamp only prevents a NaN crash at gamma=0 (0/0 -> 0/1e-8); it does NOT recover the
+    # mathematically correct value there. At gamma=0, powers[t]=0 for every t>=1, so
+    # returns[n,t] silently comes out as 0 instead of the true G_t = r_t for t>=1. Harmless
+    # for the padded (already-masked-out) positions, but also wrong for real, valid timesteps
+    # if gamma is ever set to exactly 0 -- this function assumes gamma > 0.
     return returns / torch.clamp(powers, min=1e-8).unsqueeze(0)
 
 
@@ -227,6 +231,8 @@ def _compute_empirical_fisher(policy, flat_states, flat_actions, flat_mask, damp
     v_states = flat_states[valid].detach() # detached tensor of valid (non-padded) states 
     v_actions = flat_actions[valid].detach() # detached tensor of valid (non-padded) actions
     if v_actions.ndim == 1:
+        # 1-D means discrete actions (one action-id per sample); cast to long for
+        # Categorical.log_prob. Continuous actions stay 2-D [M, action_dim] float.
         v_actions = v_actions.long()
     M = v_states.shape[0]
 

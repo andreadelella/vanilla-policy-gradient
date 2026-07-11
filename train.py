@@ -130,6 +130,9 @@ def run_single_training(cfg: dict):
             loss.backward()
 
             if cfg.get("use_npg", False):
+                # Note: re-derives states/actions/mask from `trajectories` internally
+                # (trajectories_to_tensors runs again here) rather than reusing the ones
+                # already built inside compute_gpomdp_loss above -- redundant but not incorrect.
                 apply_npg_preconditioning(
                     policy=policy,
                     trajectories=trajectories,

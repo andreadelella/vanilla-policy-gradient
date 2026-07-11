@@ -88,6 +88,10 @@ def collect_parallel_trajectories(
                 if dones[env_idx]:
                     finished[env_idx] = True
 
+            # For envs that just finished, `next_states` holds the vector env's auto-reset
+            # observation for a *new* episode, not a terminal state. That's fine here: those
+            # indices are excluded from `active_indices` on every future iteration, so this
+            # stray reset observation is written into `states` but never read again.
             states = next_states
 
         all_trajectories.extend(trajectories)

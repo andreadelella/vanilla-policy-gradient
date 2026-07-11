@@ -3,6 +3,11 @@ from abc import ABC, abstractmethod
 import gymnasium as gym
 from gymnasium.spaces import Box, Discrete
 
+# NOTE: not imported by run.py/train.py/data_collection.py. The actual training loop builds
+# its vectorized envs directly via gym.vector.AsyncVectorEnv + a thunk (see train.py:make_env)
+# rather than through this wrapper. This module is a standalone helper for single-env use
+# (e.g. manual/interactive experimentation, set_state-based planning) outside that loop.
+
 
 class BaseEnv(ABC):
     def __init__(self, env_id: str, horizon: int = 0, gamma: float = 0.99, clip: bool = True):
