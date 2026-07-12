@@ -10,13 +10,12 @@ from gymnasium.spaces import Box, Discrete
 
 
 class BaseEnv(ABC):
-    def __init__(self, env_id: str, horizon: int = 0, gamma: float = 0.99, clip: bool = True):
+    def __init__(self, env_id: str, horizon: int = 0, gamma: float = 0.99):
         assert 0.0 <= gamma <= 1.0
 
         self.env_id = env_id
         self.horizon = horizon
         self.gamma = gamma
-        self.clip = clip
         self.time = 0
 
         self.env = gym.make(env_id)
@@ -40,9 +39,9 @@ class BaseEnv(ABC):
         return self.env.reset(seed=seed)
 
     def step(self, action):
-        if self.clip and isinstance(self.action_space, Box):
-            action = action.clip(self.action_space.low, self.action_space.high)
-
+        # Action clipping (for Box spaces) is the caller's responsibility -- see
+        # data_collection.collect_parallel_trajectories(clip_actions=...), the actual
+        # training loop's clipping point. Not duplicated here.
         obs, reward, terminated, truncated, info = self.env.step(action)
         self.time += 1
 
