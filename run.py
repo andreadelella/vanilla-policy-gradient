@@ -2,10 +2,7 @@ import argparse
 import json
 import os
 
-import numpy as np
-
-from train import main
-from utils import plot_comparison
+from train import train_from_config
 
 
 def str_to_bool(x):
@@ -38,7 +35,7 @@ def build_config(args):
         "clip_actions": str_to_bool(args.clip_actions),
 
         "hidden_sizes": parse_hidden_sizes(args.hidden_sizes),
-        "hidden_dim": args.hidden_dim,
+        "policy": args.policy,
 
         "init_log_std": args.init_log_std,
         "learn_std": str_to_bool(args.learn_std),
@@ -47,7 +44,6 @@ def build_config(args):
         "save_checkpoints": str_to_bool(args.save_checkpoints),
         "record_video": str_to_bool(args.record_video),
 
-        "use_npg": str_to_bool(args.use_npg),
         "npg_damping": args.npg_damping,
         "entropy_coeff": args.entropy_coeff,
     }
@@ -59,7 +55,7 @@ _SKIP_FROM_FILE = {"output_dir", "scored_checkpoints"}
 # Config keys stored as JSON booleans but argparse expects a 0/1 int.
 _BOOL_KEYS = {
     "center_returns", "normalize_returns", "clip_actions",
-    "learn_std", "save_plots", "save_checkpoints", "record_video", "use_npg",
+    "learn_std", "save_plots", "save_checkpoints", "record_video",
 }
 
 
@@ -99,7 +95,7 @@ def _print_algo_header(cfg):
         print(f"Algorithm    : GPOMDP (Adam, lr={cfg['lr']})")
 
 
-def main_run():
+def main():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
@@ -182,26 +178,12 @@ def main_run():
         help="Learning rate for NPG (SGD). Falls back to --lr if not set.",
     )
 
-    # --algorithms is the primary way to select algorithm(s).
-    # --use_npg is kept for backward compatibility with config.json.
     parser.add_argument(
-        "--algorithms",
+        "--algorithm",
         type=str,
-        nargs="+",
-        default=None,
+        default="gpomdp",
         choices=["gpomdp", "npg"],
-        help=(
-            "Algorithm(s) to run. 'gpomdp' uses Adam; 'npg' uses natural gradient. "
-            "Specifying both (--algorithms gpomdp npg) triggers a comparison run: "
-            "each algorithm is trained in its own subdirectory and a joint CI plot is saved."
-        ),
-    )
-    parser.add_argument(
-        "--use_npg",
-        type=int,
-        default=0,
-        choices=[0, 1],
-        help=argparse.SUPPRESS,  # legacy; prefer --algorithms
+        help="Algorithm to run. 'gpomdp' uses Adam; 'npg' uses natural gradient.",
     )
     parser.add_argument(
         "--npg_damping",
@@ -242,13 +224,21 @@ def main_run():
         "--hidden_sizes",
         type=str,
         default="8,8",
-        help="Hidden layer sizes for the Gaussian policy (continuous envs). Comma-separated, e.g. '64,64'.",
+        help=(
+            "Hidden layer sizes, comma-separated (e.g. '64,64'). Used by GaussianPolicy "
+            "(continuous envs) and MLPSoftmaxPolicy (discrete envs, --policy mlp). "
+            "Ignored when --policy linear."
+        ),
     )
     parser.add_argument(
-        "--hidden_dim",
-        type=int,
-        default=32,
-        help="Hidden layer size for the softmax MLP policy (discrete envs).",
+        "--policy",
+        type=str,
+        default="mlp",
+        choices=["mlp", "linear"],
+        help=(
+            "Policy architecture for discrete action spaces only ('mlp' or 'linear'). "
+            "Continuous envs always use GaussianPolicy."
+        ),
     )
 
     parser.add_argument(
@@ -292,82 +282,29 @@ def main_run():
 
     args = parser.parse_args()
 
-    # Resolve which algorithm(s) to run.
-    # --algorithms takes priority; fall back to legacy --use_npg / config.json use_npg.
-    if args.algorithms is not None:
-        algorithms = args.algorithms
-    else:
-        algorithms = ["npg"] if str_to_bool(args.use_npg) else ["gpomdp"]
+    algorithm = args.algorithm
 
     # Auto-generate output dir when the user did not specify one.
     output_dir_specified = args.output_dir is not None
     output_dir = args.output_dir if output_dir_specified else os.path.join("runs", args.env_id)
 
-    comparing = len(algorithms) > 1
+    cfg = build_config(args)
+    cfg["use_npg"] = (algorithm == "npg")
+    if algorithm == "npg" and cfg["lr_npg"] is not None:
+        cfg["lr"] = cfg["lr_npg"]
+    cfg["output_dir"] = output_dir
+    cfg["scored_checkpoints"] = not output_dir_specified
 
-    if not comparing:
-        # -- Single algorithm --------------------------------------------------
-        algo = algorithms[0]
-        cfg = build_config(args)
-        cfg["use_npg"] = (algo == "npg")
-        if algo == "npg" and cfg["lr_npg"] is not None:
-            cfg["lr"] = cfg["lr_npg"]
-        cfg["output_dir"] = output_dir
-        cfg["scored_checkpoints"] = not output_dir_specified
+    os.makedirs(output_dir, exist_ok=True)
+    config_path = os.path.join(output_dir, "config.json")
+    with open(config_path, "w") as f:
+        json.dump(cfg, f, indent=2)
 
-        os.makedirs(output_dir, exist_ok=True)
-        config_path = os.path.join(output_dir, "config.json")
-        with open(config_path, "w") as f:
-            json.dump(cfg, f, indent=2)
+    print(f"Saved config to: {config_path}")
+    _print_algo_header(cfg)
 
-        print(f"Saved config to: {config_path}")
-        _print_algo_header(cfg)
-
-        main(config_path)
-
-    else:
-        # -- Comparison mode ---------------------------------------------------
-        mode_label = args.run_mode
-        seeds_label = str(args.seeds) if args.run_mode == "multiseed" else str([args.seed])
-        print(f"Comparing    : {' vs '.join(a.upper() for a in algorithms)}")
-        print(f"Environment  : {args.env_id}  |  mode: {mode_label}  |  seeds: {seeds_label}")
-        print(f"Output       : {output_dir}/")
-
-        for i, algo in enumerate(algorithms, 1):
-            algo_dir = os.path.join(output_dir, algo)
-            os.makedirs(algo_dir, exist_ok=True)
-
-            algo_cfg = build_config(args)
-            algo_cfg["use_npg"] = (algo == "npg")
-            if algo == "npg" and algo_cfg["lr_npg"] is not None:
-                algo_cfg["lr"] = algo_cfg["lr_npg"]
-            algo_cfg["output_dir"] = algo_dir
-            algo_cfg["scored_checkpoints"] = False
-
-            config_path = os.path.join(algo_dir, "config.json")
-            with open(config_path, "w") as f:
-                json.dump(algo_cfg, f, indent=2)
-
-            print(f"\n{'-'*55}")
-            print(f"  [{i}/{len(algorithms)}] {algo.upper()}")
-            print(f"{'-'*55}")
-            print(f"Saved config to: {config_path}")
-            _print_algo_header(algo_cfg)
-
-            main(config_path)
-
-        # Collect saved reward arrays and produce the comparison plot.
-        rewards = {}
-        for algo in algorithms:
-            npy_path = os.path.join(output_dir, algo, "training_rewards.npy")
-            if os.path.exists(npy_path):
-                rewards[algo] = np.load(npy_path)
-            else:
-                print(f"Warning: missing {npy_path} — skipping {algo} from comparison plot")
-
-        if len(rewards) > 1:
-            plot_comparison(rewards, save_dir=output_dir, env_id=args.env_id)
+    train_from_config(config_path)
 
 
 if __name__ == "__main__":
-    main_run()
+    main()

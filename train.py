@@ -10,7 +10,7 @@ import torch
 
 from utils import plot_training_curves, record_policy_video
 from data_collection import collect_parallel_trajectories
-from policy import GaussianPolicy, MLPSoftmaxPolicy
+from policy import GaussianPolicy, MLPSoftmaxPolicy, LinearSoftmaxPolicy
 from gpomdp import compute_gpomdp_loss, apply_npg_preconditioning
 
 
@@ -64,11 +64,17 @@ def run_single_training(cfg: dict):
     elif isinstance(env.action_space, Discrete):
         action_dim = env.action_space.n
 
-        policy = MLPSoftmaxPolicy(
-            state_dim=state_dim,
-            action_dim=action_dim,
-            hidden_dim=cfg.get("hidden_dim", 32),
-        )
+        if cfg.get("policy", "mlp") == "linear":
+            policy = LinearSoftmaxPolicy(
+                state_dim=state_dim,
+                action_dim=action_dim,
+            )
+        else:
+            policy = MLPSoftmaxPolicy(
+                state_dim=state_dim,
+                action_dim=action_dim,
+                hidden_sizes=tuple(cfg["hidden_sizes"]),
+            )
 
     else:
         raise ValueError(f"Unsupported action space: {env.action_space}")
@@ -271,7 +277,7 @@ def run_multiseed(cfg: dict):
     )
 
 
-def main(config_path="config.json"):
+def train_from_config(config_path="config.json"):
     cfg = load_config(config_path)
     run_mode = cfg.get("run_mode", "single")
 
@@ -285,4 +291,4 @@ def main(config_path="config.json"):
 
 
 if __name__ == "__main__":
-    main()
+    train_from_config()

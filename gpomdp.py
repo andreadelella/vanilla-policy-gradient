@@ -32,11 +32,7 @@ def compute_discounted_returns_matrix(
     powers = gamma ** torch.arange(T, dtype=rewards.dtype, device=rewards.device)
     scaled = rewards * powers.unsqueeze(0)
     returns = scaled.flip(1).cumsum(1).flip(1)
-    # clamp only prevents a NaN crash at gamma=0 (0/0 -> 0/1e-8); it does NOT recover the
-    # mathematically correct value there. At gamma=0, powers[t]=0 for every t>=1, so
-    # returns[n,t] silently comes out as 0 instead of the true G_t = r_t for t>=1. Harmless
-    # for the padded (already-masked-out) positions, but also wrong for real, valid timesteps
-    # if gamma is ever set to exactly 0 -- this function assumes gamma > 0.
+    # clamp avoids 0/0 when gamma=0 (padded positions already have scaled=0)
     return returns / torch.clamp(powers, min=1e-8).unsqueeze(0)
 
 

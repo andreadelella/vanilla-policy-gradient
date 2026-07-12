@@ -39,14 +39,20 @@ class LinearSoftmaxPolicy(nn.Module):
 class MLPSoftmaxPolicy(nn.Module):
     # MLP policy for discrete action spaces (e.g. CartPole).
     # Outputs a categorical distribution over actions via a softmax over logits.
-    def __init__(self, state_dim: int, action_dim: int, hidden_dim: int = 32):
+    def __init__(self, state_dim: int, action_dim: int, hidden_sizes=(32,)):
         super().__init__()
 
-        self.net = nn.Sequential(
-            nn.Linear(state_dim, hidden_dim),
-            nn.Tanh(),
-            nn.Linear(hidden_dim, action_dim),
-        )
+        layers = []
+        input_dim = state_dim
+
+        for hidden_dim in hidden_sizes:
+            layers.append(nn.Linear(input_dim, hidden_dim))
+            layers.append(nn.Tanh())
+            input_dim = hidden_dim
+
+        layers.append(nn.Linear(input_dim, action_dim))
+
+        self.net = nn.Sequential(*layers)
 
     def forward(self, state: torch.Tensor) -> torch.Tensor:
         return self.net(state)  # raw logits
