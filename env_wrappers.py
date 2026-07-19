@@ -39,9 +39,8 @@ class BaseEnv(ABC):
         return self.env.reset(seed=seed)
 
     def step(self, action):
-        # Action clipping (for Box spaces) is the caller's responsibility -- see
-        # data_collection.collect_parallel_trajectories(clip_actions=...), the actual
-        # training loop's clipping point. Not duplicated here.
+        # Action clipping (for Box spaces) is the caller's responsibility.
+        # See data_collection.collect_parallel_trajectories(clip_actions=...).
         obs, reward, terminated, truncated, info = self.env.step(action)
         self.time += 1
 

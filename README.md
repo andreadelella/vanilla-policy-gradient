@@ -98,6 +98,7 @@ present). The `config.json` checked into this repo overrides several of them —
 | `--n_trajectories` | `1` | Number of episodes collected per environment per iteration. |
 | `--horizon` | `200` | Maximum episode length (truncates via `TimeLimit` wrapper). Set to `0` to use the environment default. |
 | `--gamma` | `0.99` | Discount factor γ ∈ (0, 1]. |
+| `--returns_implementation` | `recursive` | Discounted-return backend: numerically safe `recursive`, or guarded float64 `vectorized`. |
 | `--algorithms` | `gpomdp` | Algorithm(s) to run: `gpomdp` (Adam) or `npg` (SGD + Fisher preconditioning). Pass both to trigger comparison mode. |
 | `--lr` | `1e-4` | Learning rate for GPOMDP (Adam optimizer). |
 | `--lr_npg` | `None` | Learning rate for NPG (SGD optimizer). Defaults to `--lr` if not set. |

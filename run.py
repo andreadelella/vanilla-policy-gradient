@@ -10,7 +10,10 @@ def str_to_bool(x):
 
 
 def parse_hidden_sizes(value: str):
-    return [int(v) for v in value.split(",")]
+    sizes = [int(v.strip()) for v in value.split(",") if v.strip()]
+    if not sizes or any(size <= 0 for size in sizes):
+        raise ValueError("hidden_sizes must contain positive integers, e.g. '32,32'")
+    return sizes
 
 
 def build_config(args):
@@ -27,6 +30,7 @@ def build_config(args):
         "horizon": args.horizon,
 
         "gamma": args.gamma,
+        "returns_implementation": args.returns_implementation,
         "lr": args.lr,
         "lr_npg": args.lr_npg,
 
@@ -164,6 +168,16 @@ def main():
         type=float,
         default=0.99,
         help="Discount factor γ ∈ (0, 1]. Controls down-weighting of future rewards.",
+    )
+    parser.add_argument(
+        "--returns_implementation",
+        type=str,
+        default="recursive",
+        choices=["recursive", "vectorized"],
+        help=(
+            "Discounted-return backend. 'recursive' is numerically safe; "
+            "'vectorized' uses a guarded float64 powers/reverse-cumsum formulation."
+        ),
     )
     parser.add_argument(
         "--lr",
