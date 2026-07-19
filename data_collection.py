@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List
 
 import gymnasium as gym
@@ -9,9 +9,14 @@ import torch
 @dataclass
 class Trajectory:
     states: List[np.ndarray]
+    # Samples drawn from the policy distribution. GPOMDP and the empirical
+    # Fisher must evaluate log pi(a|s) at these actions.
     actions: List[np.ndarray]
     rewards: List[float]
     dones: List[bool]
+    # Actions actually passed to the environment. For bounded continuous
+    # spaces these may differ from `actions` because of clipping.
+    executed_actions: List[np.ndarray] = field(default_factory=list)
 
 
 def collect_parallel_trajectories(
@@ -81,7 +86,14 @@ def collect_parallel_trajectories(
 
             for local_idx, env_idx in enumerate(active_indices):
                 trajectories[env_idx].states.append(states[env_idx].copy())
+                # The environment sees the bounded action, but the likelihood-ratio
+                # estimator is defined over the random variable sampled from the Gaussian.
+                # Using Normal.log_prob(clipped_action) would incorrectly treat boundary
+                # probability mass as an ordinary Gaussian density value.
                 trajectories[env_idx].actions.append(raw_actions[local_idx].copy())
+                trajectories[env_idx].executed_actions.append(
+                    env_actions[local_idx].copy()
+                )
                 trajectories[env_idx].rewards.append(float(rewards[env_idx]))
                 trajectories[env_idx].dones.append(bool(dones[env_idx]))
 
