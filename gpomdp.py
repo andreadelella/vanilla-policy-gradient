@@ -1,4 +1,5 @@
 import numpy as np
+import math
 import torch
 from torch.distributions import Categorical, Normal
 from torch.func import functional_call, grad as _fgrad, vmap
@@ -11,29 +12,61 @@ from torch.func import functional_call, grad as _fgrad, vmap
 #M: Computes the discounted reward-to-go G_{n,t} for every trajectory n and
 #   timestep t in one shot, i.e. the full [N, T] matrix of returns used to
 #   weight the log-probabilities in the GPOMDP gradient.
-#A: A naive implementation would loop backwards over t (Python loop, T
-#   iterations) accumulating G_t = r_t + gamma*G_{t+1}. Instead we exploit
-#   G_{n,t} = gamma^{-t} * Σ_{k>=t} gamma^k r_{n,k}, i.e. gamma^{-t} times a
-#   reverse cumulative sum of the gamma-scaled rewards. `flip.cumsum.flip`
-#   computes that reverse cumsum for every (n, t) pair in parallel on the
-#   GPU/vectorized backend, replacing an O(T) sequential Python loop with a
-#   handful of O(1)-launched tensor ops.
+#A: The stable backwards recurrence G_t = r_t + gamma*G_{t+1} is used
+#   directly. A powers/reverse-cumsum formulation is superficially more
+#   vectorized, but gamma**t underflows on long horizons for ordinary
+#   discounts and silently corrupts late-timestep returns.
 def compute_discounted_returns_matrix(
     rewards: torch.Tensor,
     gamma: float,
+    implementation: str = "recursive",
 ) -> torch.Tensor:
     """
     rewards: [N, T]
 
     returns[n, t] = r[n, t] + gamma * r[n, t+1] + ...
     """
-    # G_{n,t} = (1/γ^t) * reverse_cumsum(r_{n,k} * γ^k): three tensor ops replace a Python loop over T
-    T = rewards.shape[1]
-    powers = gamma ** torch.arange(T, dtype=rewards.dtype, device=rewards.device)
-    scaled = rewards * powers.unsqueeze(0)
-    returns = scaled.flip(1).cumsum(1).flip(1)
-    # clamp avoids 0/0 when gamma=0 (padded positions already have scaled=0)
-    return returns / torch.clamp(powers, min=1e-8).unsqueeze(0)
+    if not 0.0 <= gamma <= 1.0:
+        raise ValueError("gamma must be between 0 and 1")
+
+    if implementation == "recursive":
+        # Stable over the full accepted gamma range and all practical horizons.
+        returns = torch.empty_like(rewards)
+        running = torch.zeros(
+            rewards.shape[0], dtype=rewards.dtype, device=rewards.device
+        )
+        for timestep in range(rewards.shape[1] - 1, -1, -1):
+            running = rewards[:, timestep] + gamma * running
+            returns[:, timestep] = running
+        return returns
+
+    if implementation == "vectorized":
+        if gamma == 0.0 or rewards.shape[1] <= 1:
+            return rewards.clone()
+
+        # Do the powers calculation in float64 even when training uses
+        # float32. The original float32 implementation clamped small powers,
+        # which changed the mathematical result. Reject a request that would
+        # leave float64's normal range instead of silently approximating it.
+        last_exponent = (rewards.shape[1] - 1) * math.log(gamma)
+        if last_exponent < math.log(torch.finfo(torch.float64).tiny):
+            raise ValueError(
+                "The vectorized discounted-return formulation is numerically unsafe "
+                f"for gamma={gamma} and horizon={rewards.shape[1]}; "
+                "use implementation='recursive'."
+            )
+
+        work = rewards.to(torch.float64)
+        powers = gamma ** torch.arange(
+            rewards.shape[1], dtype=torch.float64, device=rewards.device
+        )
+        scaled = work * powers.unsqueeze(0)
+        returns = scaled.flip(1).cumsum(1).flip(1) / powers.unsqueeze(0)
+        return returns.to(rewards.dtype)
+
+    raise ValueError(
+        "implementation must be either 'recursive' or 'vectorized'"
+    )
 
 
 #M: Converts a Python list of variable-length Trajectory objects into a
@@ -123,6 +156,7 @@ def compute_gpomdp_loss(
     center_returns: bool = True,
     normalize_returns: bool = False,
     entropy_coeff: float = 0.0,
+    returns_implementation: str = "recursive",
     debug: bool = False,
 ):
     """
@@ -137,6 +171,7 @@ def compute_gpomdp_loss(
     returns = compute_discounted_returns_matrix(
         rewards=rewards,
         gamma=gamma,
+        implementation=returns_implementation,
     )
 
     valid_returns = returns[mask.bool()]
@@ -251,7 +286,7 @@ def _compute_empirical_fisher(policy, flat_states, flat_actions, flat_mask, damp
     # The combo vmap and fgrad computes, in one call, per_sample_grads: dict {name: [M, *param_shape]}
 
     S = torch.cat([g.reshape(M, -1) for g in per_sample_grads.values()], dim=1)  # [M, P]
-    F = S.T @ S / M + damping * torch.eye(P)
+    F = S.T @ S / M + damping * torch.eye(P, dtype=S.dtype, device=S.device)
     return F
 
 
@@ -288,7 +323,7 @@ def apply_npg_preconditioning(policy, trajectories, damping: float = 1e-2, debug
     # Assemble the current gradient vector g from .grad of all parameters.
     params = list(policy.parameters())
     g = torch.cat([
-        p.grad.reshape(-1) if p.grad is not None else torch.zeros(p.numel())
+        p.grad.reshape(-1) if p.grad is not None else torch.zeros_like(p).reshape(-1)
         for p in params
     ])
 
