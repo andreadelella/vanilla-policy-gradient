@@ -3,13 +3,12 @@ import os
 import time
 
 import gymnasium as gym
-from gymnasium.spaces import Box, Discrete
 import numpy as np
 import torch
 
 from utils import plot_training_curves, record_policy_video
 from data_collection import collect_parallel_trajectories
-from policy import GaussianPolicy, MLPSoftmaxPolicy, LinearSoftmaxPolicy
+from policy import build_policy
 from gpomdp import compute_gpomdp_loss, apply_npg_preconditioning
 
 
@@ -80,37 +79,7 @@ def run_single_training(cfg: dict):
 
     env = gym.make(cfg["env_id"])
 
-    state_dim = env.observation_space.shape[0]
-
-    if isinstance(env.action_space, Box):
-        action_dim = env.action_space.shape[0]
-
-        policy = GaussianPolicy(
-            state_dim=state_dim,
-            action_dim=action_dim,
-            hidden_sizes=tuple(cfg["hidden_sizes"]),
-            init_log_std=cfg["init_log_std"],
-            learn_std=cfg["learn_std"],
-        )
-
-    elif isinstance(env.action_space, Discrete):
-        action_dim = env.action_space.n
-
-        if cfg.get("policy", "mlp") == "linear":
-            policy = LinearSoftmaxPolicy(
-                state_dim=state_dim,
-                action_dim=action_dim,
-            )
-        else:
-            policy = MLPSoftmaxPolicy(
-                state_dim=state_dim,
-                action_dim=action_dim,
-                hidden_sizes=tuple(cfg["hidden_sizes"]),
-            )
-
-    else:
-        raise ValueError(f"Unsupported action space: {env.action_space}")
-
+    policy = build_policy(cfg, env)
     policy.to(device)
 
     if cfg.get("use_npg", False):

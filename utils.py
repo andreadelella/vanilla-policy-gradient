@@ -208,3 +208,53 @@ def record_policy_video(
         print(f"Saved video ({len(frames)} frames, {len(frames) / fps:.1f}s): {video_path}")
 
     env.close()
+
+
+def record_checkpoint_video(
+    run_dir,
+    checkpoint_name="best.pt",
+    n_episodes=3,
+    fps=30,
+    seed=None,
+):
+    """Rebuild the policy from a run directory and record videos from a checkpoint.
+
+    `run_dir` must contain `config.json` and `checkpoints/<checkpoint_name>`
+    (as produced by run.py with --save_checkpoints 1). The checkpoint stores
+    only weights, so config.json is used to reconstruct the matching architecture.
+    Videos are written to `<run_dir>/videos/`.
+    """
+    import json
+
+    # Local import avoids a circular import (policy.py has no dependency on utils).
+    from policy import build_policy
+
+    config_path = os.path.join(run_dir, "config.json")
+    with open(config_path) as f:
+        cfg = json.load(f)
+
+    checkpoint_path = os.path.join(run_dir, "checkpoints", checkpoint_name)
+    if not os.path.exists(checkpoint_path):
+        raise FileNotFoundError(f"No checkpoint at {checkpoint_path}")
+
+    # A throwaway env just to read the observation/action spaces for the architecture.
+    probe_env = gym.make(cfg["env_id"])
+    policy = build_policy(cfg, probe_env)
+    probe_env.close()
+
+    # Weights are saved on CPU; replay runs on CPU (see record_policy_video).
+    state_dict = torch.load(checkpoint_path, map_location="cpu")
+    policy.load_state_dict(state_dict)
+    policy.eval()
+
+    if seed is None:
+        seed = cfg.get("seed", 0) + 20_000
+
+    record_policy_video(
+        env_id=cfg["env_id"],
+        policy=policy,
+        video_dir=os.path.join(run_dir, "videos"),
+        seed=seed,
+        n_episodes=n_episodes,
+        fps=fps,
+    )

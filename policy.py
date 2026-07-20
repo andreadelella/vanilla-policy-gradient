@@ -1,3 +1,4 @@
+import gymnasium as gym
 import torch
 from torch import nn
 from torch.distributions import Categorical, Normal
@@ -149,3 +150,33 @@ class GaussianPolicy(nn.Module):
 
         # Sum over action dimensions: assumes each coordinate is an independent Gaussian.
         return dist.log_prob(action_tensor).sum(dim=-1)
+
+
+def build_policy(cfg: dict, env) -> nn.Module:
+    """Construct the policy that matches `cfg` for `env`'s observation/action spaces.
+
+    Shared by training (train.py) and checkpoint replay (utils.record_checkpoint_video)
+    so both build the exact same architecture from a config dict.
+    """
+    state_dim = env.observation_space.shape[0]
+
+    if isinstance(env.action_space, gym.spaces.Box):
+        return GaussianPolicy(
+            state_dim=state_dim,
+            action_dim=env.action_space.shape[0],
+            hidden_sizes=tuple(cfg["hidden_sizes"]),
+            init_log_std=cfg.get("init_log_std", -0.5),
+            learn_std=cfg.get("learn_std", True),
+        )
+
+    if isinstance(env.action_space, gym.spaces.Discrete):
+        action_dim = env.action_space.n
+        if cfg.get("policy", "mlp") == "linear":
+            return LinearSoftmaxPolicy(state_dim=state_dim, action_dim=action_dim)
+        return MLPSoftmaxPolicy(
+            state_dim=state_dim,
+            action_dim=action_dim,
+            hidden_sizes=tuple(cfg["hidden_sizes"]),
+        )
+
+    raise ValueError(f"Unsupported action space: {env.action_space}")

@@ -80,6 +80,16 @@ This trains both algorithms independently (each in its own subdirectory) and sav
 python3 run.py --env_id CartPole-v1 --record_video 1
 ```
 
+To re-record from an existing run without retraining, use `record_checkpoint_video`, which
+rebuilds the policy from that run's `config.json` and loads a saved checkpoint:
+
+```python
+from utils import record_checkpoint_video
+
+# Uses runs/CartPole-v1/checkpoints/best.pt and writes to runs/CartPole-v1/videos/
+record_checkpoint_video("runs/CartPole-v1", checkpoint_name="best.pt", n_episodes=3)
+```
+
 ## Hyperparameters
 
 Defaults below are `run.py`'s hardcoded argparse defaults (what you get with no `config.json`
@@ -127,10 +137,10 @@ All outputs are written to `--output_dir` (default: `runs/<env_id>/`).
 | `training_rewards.npz` | always | Training curves as a NumPy archive: `rewards` of shape `[1, n_iterations]` (single) or `[n_seeds, n_iterations]` (multiseed), plus a `seeds` array labeling each row with its seed id. |
 | `training_rewards_seed<seed>.npz` | multiseed mode | One archive per seed (`rewards` shape `[1, n_iterations]`, `seeds` `[<seed>]`) so each seed's curve is identifiable on disk. |
 | `training_rewards.png` | single mode | Per-iteration mean return over the training batch. |
-| `training_rewards_ci.png` | multiseed mode | Mean training return ± 95% CI across seeds. |
+| `training_rewards_ci.png` | analysis notebook | Mean training return ± 95% CI across seeds, generated from the saved `.npz` in `notebooks/comparison.ipynb` (no longer produced at train time). |
 | `checkpoints/best.pt` | `--save_checkpoints 1` | Policy weights with the highest training return during learning. |
 | `checkpoints/final.pt` | `--save_checkpoints 1` | Policy weights at the end of training. |
-| `videos/` | `--record_video 1` | MP4 recordings of the best policy. |
+| `videos/` | `--record_video 1` or `record_checkpoint_video(...)` | MP4 recordings of the policy. |
 
 ### Comparison mode (`--algorithms gpomdp npg`)
 
