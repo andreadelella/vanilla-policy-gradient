@@ -124,7 +124,8 @@ All outputs are written to `--output_dir` (default: `runs/<env_id>/`).
 | File | Produced by | Description |
 |---|---|---|
 | `config.json` | always | Full hyperparameter config for the run. |
-| `training_rewards.npy` | always | Training curves as a NumPy array, shape `[1, n_iterations]` (single) or `[n_seeds, n_iterations]` (multiseed). |
+| `training_rewards.npz` | always | Training curves as a NumPy archive: `rewards` of shape `[1, n_iterations]` (single) or `[n_seeds, n_iterations]` (multiseed), plus a `seeds` array labeling each row with its seed id. |
+| `training_rewards_seed<seed>.npz` | multiseed mode | One archive per seed (`rewards` shape `[1, n_iterations]`, `seeds` `[<seed>]`) so each seed's curve is identifiable on disk. |
 | `training_rewards.png` | single mode | Per-iteration mean return over the training batch. |
 | `training_rewards_ci.png` | multiseed mode | Mean training return ± 95% CI across seeds. |
 | `checkpoints/best.pt` | `--save_checkpoints 1` | Policy weights with the highest training return during learning. |

@@ -19,6 +19,7 @@ def parse_hidden_sizes(value: str):
 def build_config(args):
     return {
         "run_mode": args.run_mode,
+        "device": args.device,
 
         "env_id": args.env_id,
         "seed": args.seed,
@@ -116,6 +117,18 @@ def main():
         default="single",
         choices=["single", "multiseed"],
         help="'single' trains one seed; 'multiseed' loops over --seeds and produces CI plots.",
+    )
+
+    parser.add_argument(
+        "--device",
+        type=str,
+        default="auto",
+        choices=["auto", "cpu", "cuda", "mps"],
+        help=(
+            "Compute device for the policy and gradient math. 'auto' prefers CUDA, "
+            "then Apple MPS, then CPU. Note: environment rollouts always run on CPU "
+            "(MuJoCo/gym); the GPU only helps when the policy network is large."
+        ),
     )
 
     parser.add_argument(

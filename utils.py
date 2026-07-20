@@ -121,6 +121,42 @@ def plot_comparison(rewards_dict, save_dir, env_id=""):
     print(f"Saved comparison plot: {save_path}")
 
 
+def plot_seed_ci(curves, save_path=None, title="Training reward across seeds",
+                 ylabel="Average training return", xlabel="Iteration", label=None):
+    """Plot mean +/- 95% CI for a single run's per-seed curves.
+
+    curves: array of shape [n_seeds, n_iterations] (as saved in training_rewards.npy).
+    A single-seed run ([1, n_iters]) is plotted as a bare mean with no band.
+    """
+    curves = np.asarray(curves, dtype=np.float64)
+    if curves.ndim == 1:
+        curves = curves[None, :]
+
+    if curves.shape[0] == 1:
+        mean = curves[0]
+        lower = upper = None
+    else:
+        mean, lower, upper = mean_confidence_interval(curves)
+
+    x_values = np.arange(len(mean))
+
+    plt.figure()
+    plt.plot(x_values, mean, label=label or "Mean")
+    if lower is not None:
+        plt.fill_between(x_values, lower, upper, alpha=0.25, label="95% CI")
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.title(title)
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+
+    if save_path is not None:
+        os.makedirs(os.path.dirname(save_path) or ".", exist_ok=True)
+        plt.savefig(save_path, dpi=300)
+        print(f"Saved CI plot: {save_path}")
+
+
 def plot_training_curves(training_rewards, save_dir="plots"):
     os.makedirs(save_dir, exist_ok=True)
 

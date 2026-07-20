@@ -4,11 +4,10 @@ import time
 
 import gymnasium as gym
 from gymnasium.spaces import Box, Discrete
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from utils import mean_confidence_interval, plot_training_curves, record_policy_video
+from utils import plot_training_curves, record_policy_video
 from data_collection import collect_parallel_trajectories
 from policy import GaussianPolicy, MLPSoftmaxPolicy, LinearSoftmaxPolicy
 from gpomdp import compute_gpomdp_loss, apply_npg_preconditioning
@@ -17,6 +16,36 @@ from gpomdp import compute_gpomdp_loss, apply_npg_preconditioning
 def load_config(path="config.json"):
     with open(path, "r") as f:
         return json.load(f)
+
+
+def save_training_rewards(output_dir, rewards, seeds, filename="training_rewards.npz"):
+    """Save per-seed training curves to an .npz archive.
+
+    rewards: array-like [n_seeds, n_iterations].
+    seeds:   sequence of length n_seeds; seeds[i] is the unique id for rewards[i],
+             so individual seed performance can be recovered downstream.
+    """
+    rewards = np.asarray(rewards, dtype=np.float32)
+    seeds = np.asarray(seeds, dtype=np.int64)
+    assert rewards.shape[0] == seeds.shape[0], "one seed id required per reward curve"
+
+    path = os.path.join(output_dir, filename)
+    np.savez(path, rewards=rewards, seeds=seeds)
+    return path
+
+
+def resolve_device(name=None) -> torch.device:
+    """Resolve a device string to a torch.device.
+
+    'auto' (or None) prefers CUDA, then Apple MPS, then CPU.
+    """
+    if name in (None, "auto"):
+        if torch.cuda.is_available():
+            return torch.device("cuda")
+        if torch.backends.mps.is_available():
+            return torch.device("mps")
+        return torch.device("cpu")
+    return torch.device(name)
 
 
 def make_env(env_id: str, seed: int | None, horizon: int | None = None):
@@ -45,6 +74,9 @@ def run_single_training(cfg: dict):
 
     torch.manual_seed(cfg["seed"])
     np.random.seed(cfg["seed"])
+
+    device = resolve_device(cfg.get("device", "auto"))
+    print(f"Device       : {device}")
 
     env = gym.make(cfg["env_id"])
 
@@ -79,6 +111,8 @@ def run_single_training(cfg: dict):
     else:
         raise ValueError(f"Unsupported action space: {env.action_space}")
 
+    policy.to(device)
+
     if cfg.get("use_npg", False):
         optimizer = torch.optim.SGD(policy.parameters(), lr=cfg["lr"])
     else:
@@ -111,6 +145,7 @@ def run_single_training(cfg: dict):
                 policy=policy,
                 n_trajectories_per_env=cfg["n_trajectories"],
                 clip_actions=cfg.get("clip_actions", True),
+                device=device,
             )
 
             t1 = time.perf_counter()
@@ -140,6 +175,7 @@ def run_single_training(cfg: dict):
                 normalize_returns=cfg["normalize_returns"],
                 entropy_coeff=cfg.get("entropy_coeff", 0.0),
                 returns_implementation=cfg.get("returns_implementation", "recursive"),
+                device=device,
                 debug=debug,
             )
 
@@ -153,6 +189,7 @@ def run_single_training(cfg: dict):
                     policy=policy,
                     trajectories=trajectories,
                     damping=cfg.get("npg_damping", 1e-2),
+                    device=device,
                     debug=debug,
                 )
 
@@ -186,7 +223,11 @@ def run_single_training(cfg: dict):
     training_time = time.perf_counter() - training_start
     print(f"training time {training_time:.2f}s")
 
-    np.save(os.path.join(output_dir, "training_rewards.npy"), np.array([training_rewards], dtype=np.float32))
+    save_training_rewards(
+        output_dir,
+        np.array([training_rewards], dtype=np.float32),
+        [cfg["seed"]],
+    )
 
     if cfg.get("save_plots", True):
         plot_training_curves(
@@ -206,6 +247,8 @@ def run_single_training(cfg: dict):
         torch.save(policy.state_dict(), os.path.join(checkpoint_dir, final_name))
 
     if cfg.get("record_video", False):
+        # Video recording feeds CPU state tensors to the policy, so run it on CPU.
+        policy.to("cpu")
         # Restore the best weights found during training before recording.
         if best_state_dict is not None:
             policy.load_state_dict(best_state_dict)
@@ -217,31 +260,6 @@ def run_single_training(cfg: dict):
         )
 
     return policy, training_rewards
-
-
-def plot_ci(curves, title, ylabel, xlabel, save_path, x_values=None):
-    curves = np.asarray(curves, dtype=np.float64)
-
-    if curves.shape[0] == 1:
-        mean = curves[0]
-        lower = upper = None
-    else:
-        mean, lower, upper = mean_confidence_interval(curves)
-
-    if x_values is None:
-        x_values = np.arange(len(mean))
-
-    plt.figure()
-    plt.plot(x_values, mean, label="Mean")
-    if lower is not None:
-        plt.fill_between(x_values, lower, upper, alpha=0.25, label="95% CI")
-    plt.xlabel(xlabel)
-    plt.ylabel(ylabel)
-    plt.title(title)
-    plt.grid(True)
-    plt.legend()
-    plt.savefig(save_path, dpi=300)
-    plt.close()
 
 
 def run_multiseed(cfg: dict):
@@ -264,17 +282,19 @@ def run_multiseed(cfg: dict):
 
         all_training_rewards.append(seed_rewards)
 
+        # One uniquely-named file per seed so each seed's curve is identifiable on disk.
+        per_seed_path = save_training_rewards(
+            output_dir,
+            np.array([seed_rewards], dtype=np.float32),
+            [seed],
+            filename=f"training_rewards_seed{seed}.npz",
+        )
+        print(f"Saved per-seed rewards: {per_seed_path}")
+
+    # Also save the combined matrix (all seeds, labeled) for the comparison notebook.
     all_training_rewards = np.asarray(all_training_rewards, dtype=np.float32)
 
-    np.save(os.path.join(output_dir, "training_rewards.npy"), all_training_rewards)
-
-    plot_ci(
-        curves=all_training_rewards,
-        title="Training reward across seeds",
-        ylabel="Average training return",
-        xlabel="Iteration",
-        save_path=os.path.join(output_dir, "training_rewards_ci.png"),
-    )
+    save_training_rewards(output_dir, all_training_rewards, seeds)
 
 
 def train_from_config(config_path="config.json"):

@@ -56,13 +56,12 @@ def compute_discounted_returns_matrix(
                 "use implementation='recursive'."
             )
 
-        work = rewards.to(torch.float64)
-        powers = gamma ** torch.arange(
-            rewards.shape[1], dtype=torch.float64, device=rewards.device
-        )
+        orig_device = rewards.device
+        work = rewards.detach().cpu().to(torch.float64)
+        powers = gamma ** torch.arange(rewards.shape[1], dtype=torch.float64)
         scaled = work * powers.unsqueeze(0)
         returns = scaled.flip(1).cumsum(1).flip(1) / powers.unsqueeze(0)
-        return returns.to(rewards.dtype)
+        return returns.to(device=orig_device, dtype=rewards.dtype)
 
     raise ValueError(
         "implementation must be either 'recursive' or 'vectorized'"
@@ -81,7 +80,7 @@ def compute_discounted_returns_matrix(
 #   tensor, which lets downstream code (returns, log_probs, loss) use fast
 #   batched tensor ops; the mask is then used to zero out the contribution
 #   of padded positions instead of branching per-trajectory.
-def trajectories_to_tensors(trajectories):
+def trajectories_to_tensors(trajectories, device=None):
     """
     Converts list[Trajectory] into padded tensors.
 
@@ -128,10 +127,10 @@ def trajectories_to_tensors(trajectories):
         mask[i, :T] = 1.0
 
     return (
-        torch.as_tensor(states, dtype=torch.float32),
-        torch.as_tensor(actions, dtype=torch.float32),
-        torch.as_tensor(rewards, dtype=torch.float32),
-        torch.as_tensor(mask, dtype=torch.float32),
+        torch.as_tensor(states, dtype=torch.float32, device=device),
+        torch.as_tensor(actions, dtype=torch.float32, device=device),
+        torch.as_tensor(rewards, dtype=torch.float32, device=device),
+        torch.as_tensor(mask, dtype=torch.float32, device=device),
     )
 
 
@@ -157,6 +156,7 @@ def compute_gpomdp_loss(
     normalize_returns: bool = False,
     entropy_coeff: float = 0.0,
     returns_implementation: str = "recursive",
+    device=None,
     debug: bool = False,
 ):
     """
@@ -166,7 +166,7 @@ def compute_gpomdp_loss(
     entropy_coeff > 0 adds an entropy bonus that prevents policy collapse.
     """
 
-    states, actions, rewards, mask = trajectories_to_tensors(trajectories)
+    states, actions, rewards, mask = trajectories_to_tensors(trajectories, device=device)
 
     returns = compute_discounted_returns_matrix(
         rewards=rewards,
@@ -304,14 +304,14 @@ def _compute_empirical_fisher(policy, flat_states, flat_actions, flat_mask, damp
 #   standard SGD step, and gradient flattening/reassembly reuses the exact
 #   parameter ordering from `policy.parameters()` so no name bookkeeping is
 #   needed to unflatten nat_g back into per-parameter shapes.
-def apply_npg_preconditioning(policy, trajectories, damping: float = 1e-2, debug: bool = False):
+def apply_npg_preconditioning(policy, trajectories, damping: float = 1e-2, device=None, debug: bool = False):
     """
     Preconditions the gradients in .grad with the inverse empirical Fisher:
         F · nat_g = g  →  nat_g  (solved via torch.linalg.solve)
 
     Modifies .grad in-place; the caller uses SGD to apply the pure natural gradient step.
     """
-    states, actions, _, mask = trajectories_to_tensors(trajectories)
+    states, actions, _, mask = trajectories_to_tensors(trajectories, device=device)
     N, T = mask.shape
 
     flat_states = states.reshape(N * T, -1)
@@ -342,7 +342,7 @@ def apply_npg_preconditioning(policy, trajectories, damping: float = 1e-2, debug
         offset += n
 
     if debug:
-        cond = torch.linalg.cond(F).item()
+        cond = torch.linalg.cond(F.cpu()).item()
         ratio = nat_g.norm().item() / (g.norm().item() + 1e-8)
         print("\n========== NPG PRECONDITIONING ==========")
         print(f"Fisher condition number  : {cond:.3e}")

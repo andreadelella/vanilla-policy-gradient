@@ -24,6 +24,7 @@ def collect_parallel_trajectories(
     policy,
     n_trajectories_per_env: int = 1,
     clip_actions: bool = True,
+    device=None,
 ) -> List[Trajectory]:
     """
     Collect n_trajectories_per_env complete episodes from each environment.
@@ -58,7 +59,8 @@ def collect_parallel_trajectories(
             active_indices = np.where(~finished)[0]
 
             active_states = states[active_indices]
-            state_tensor = torch.tensor(active_states, dtype=torch.float32)  # all active states in one batch
+            # all active states in one batch, on the policy's device
+            state_tensor = torch.tensor(active_states, dtype=torch.float32, device=device)
 
             with torch.no_grad():  # no autograd graph needed during rollouts
                 raw_actions = policy.sample_action(state_tensor)
