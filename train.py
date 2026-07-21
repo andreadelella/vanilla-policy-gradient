@@ -231,10 +231,48 @@ def run_single_training(cfg: dict):
     return policy, training_rewards
 
 
+def _record_best_seed_video(cfg, output_dir, all_training_rewards, seeds, final_window=100):
+    """Record a video from the best-performing seed's checkpoint.
+
+    "Best" = highest mean return over the last `final_window` iterations. The seed's
+    weights are loaded from output_dir/seed<seed>/checkpoints/best.pt (written during
+    the multiseed loop) and replayed into output_dir/videos/.
+    """
+    rewards = np.asarray(all_training_rewards, dtype=np.float64)
+    window = min(final_window, rewards.shape[1])
+    scores = rewards[:, -window:].mean(axis=1)
+    best_idx = int(np.argmax(scores))
+    best_seed = seeds[best_idx]
+    print(f"\nBest seed: {best_seed} (final-{window} mean {scores[best_idx]:.1f}) — recording video")
+
+    checkpoint_path = os.path.join(output_dir, f"seed{best_seed}", "checkpoints", "best.pt")
+    if not os.path.exists(checkpoint_path):
+        print(f"Warning: no checkpoint at {checkpoint_path}; skipping video")
+        return
+
+    # Replay runs on CPU (record_policy_video builds CPU state tensors).
+    env = gym.make(cfg["env_id"])
+    policy = build_policy(cfg, env)
+    env.close()
+
+    state_dict = torch.load(checkpoint_path, map_location="cpu")
+    policy.load_state_dict(state_dict)
+    policy.eval()
+
+    record_policy_video(
+        env_id=cfg["env_id"],
+        policy=policy,
+        video_dir=os.path.join(output_dir, "videos"),
+        seed=int(best_seed) + 20_000,
+    )
+
+
 def run_multiseed(cfg: dict):
     seeds = cfg.get("seeds", [cfg["seed"]])
     output_dir = cfg.get("output_dir", "runs")
     os.makedirs(output_dir, exist_ok=True)
+
+    want_video = cfg.get("record_video", False)
 
     all_training_rewards = []
 
@@ -243,9 +281,18 @@ def run_multiseed(cfg: dict):
 
         seed_cfg = dict(cfg)
         seed_cfg["seed"] = seed
-        seed_cfg["record_video"] = False
-        seed_cfg["save_plots"] = False        # CI plot is produced once after all seeds finish
-        seed_cfg["save_checkpoints"] = False  # checkpoints per seed would overwrite each other
+        seed_cfg["record_video"] = False   # never record during per-seed training
+        seed_cfg["save_plots"] = False     # CI plot is produced downstream in the notebook
+
+        if want_video:
+            # Keep each seed's checkpoint in its own subdir so the best seed can be
+            # replayed after all seeds finish, without seeds clobbering each other.
+            seed_cfg["save_checkpoints"] = True
+            seed_cfg["scored_checkpoints"] = False  # deterministic best.pt filename
+            seed_cfg["output_dir"] = os.path.join(output_dir, f"seed{seed}")
+            os.makedirs(seed_cfg["output_dir"], exist_ok=True)
+        else:
+            seed_cfg["save_checkpoints"] = False  # per-seed checkpoints would overwrite
 
         _, seed_rewards = run_single_training(seed_cfg)
 
@@ -264,6 +311,9 @@ def run_multiseed(cfg: dict):
     all_training_rewards = np.asarray(all_training_rewards, dtype=np.float32)
 
     save_training_rewards(output_dir, all_training_rewards, seeds)
+
+    if want_video:
+        _record_best_seed_video(cfg, output_dir, all_training_rewards, seeds)
 
 
 def train_from_config(config_path="config.json"):
