@@ -24,6 +24,9 @@ This removes the dependence on the parameter scale, making NPG significantly mor
 
 The repository also includes:
 - a standalone environment wrapper ([env_wrappers.py](env_wrappers.py)) for single-env experimentation outside the vectorised loop.
+- a fixed-policy empirical Fisher eigenspectrum analysis for studying local
+  policy compression on Hopper, HalfCheetah, and Swimmer
+  ([full report](fisher_analysis/fisher_analysis.md)).
 
 ## Installation
 
@@ -43,7 +46,8 @@ uv pip install -r requirements.txt
 
 ## Usage
 
-All experiments are launched via `run.py`. Defaults are read from `config.json`; any CLI argument overrides the file.
+Training experiments are launched via `run.py`. Defaults are read from
+`config.json`; any CLI argument overrides the file.
 
 ### Single-seed run
 
@@ -89,6 +93,66 @@ from utils import record_checkpoint_video
 # Uses runs/CartPole-v1/checkpoints/best.pt and writes to runs/CartPole-v1/videos/
 record_checkpoint_video("runs/CartPole-v1", checkpoint_name="best.pt", n_episodes=3)
 ```
+
+## Fixed-Policy Fisher Analysis
+
+The standalone [`fisher_analysis`](fisher_analysis/) package estimates the
+undamped empirical Fisher matrix of fixed random policies:
+
+```
+F = (1/M) sum_i grad log pi(a_i|s_i) grad log pi(a_i|s_i)^T
+```
+
+No learning, loss, optimizer, or parameter update occurs. The eigenvalues
+measure how strongly independent parameter-space directions change the local
+action distribution. A rapidly decaying spectrum indicates that most local
+policy sensitivity lies in a subspace much smaller than the full parameter
+space.
+
+The standard analysis uses widths 4, 8, and 16, two hidden layers, 10
+iterations, 32 asynchronous environments, 4 trajectories per environment, a
+200-step horizon, and seed 23.
+
+Run all three environments from the repository root:
+
+```bash
+# Hopper is the default.
+.venv/bin/python -m fisher_analysis.run_fisher_analysis
+
+.venv/bin/python -m fisher_analysis.run_fisher_analysis \
+  --env-id HalfCheetah-v5 \
+  --output-dir fisher_analysis/results/halfcheetah_width_sweep
+
+.venv/bin/python -m fisher_analysis.run_fisher_analysis \
+  --env-id Swimmer-v5 \
+  --output-dir fisher_analysis/results/swimmer_width_sweep
+```
+
+The measured number of principal directions needed to explain 90% of Fisher
+trace is:
+
+| Environment | Width 4 | Width 8 | Width 16 |
+|---|---:|---:|---:|
+| Hopper | 6 / 86 | 7 / 198 | 10 / 518 |
+| HalfCheetah | 32 / 128 | 45 / 276 | 70 / 668 |
+| Swimmer | 6 / 68 | 6 / 164 | 7 / 452 |
+
+Each cell is `90%-trace directions / policy parameters`. These are local
+policy-sensitivity dimensions, not already-compressed network sizes.
+
+Artifacts are stored in:
+
+- [`fisher_analysis/results/hopper_width_sweep/`](fisher_analysis/results/hopper_width_sweep/)
+- [`fisher_analysis/results/halfcheetah_width_sweep/`](fisher_analysis/results/halfcheetah_width_sweep/)
+- [`fisher_analysis/results/swimmer_width_sweep/`](fisher_analysis/results/swimmer_width_sweep/)
+
+Each directory contains the Fisher matrices, descending eigenvalues, parameter
+layouts, rollout statistics, policy checkpoints, summary metrics, and spectrum
+plots. See [`fisher_analysis/fisher_analysis.md`](fisher_analysis/fisher_analysis.md)
+for the derivation, implementation details, full results, compression
+interpretation, limitations, and verification record. The
+[`eigenvalue_analysis.ipynb`](fisher_analysis/eigenvalue_analysis.ipynb)
+notebook reproduces the plots and supports `FISHER_RESULTS_DIR` as an override.
 
 ## Hyperparameters
 
