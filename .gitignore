@@ -6,10 +6,3 @@
 
 .venv/
 __pycache__/
-
-# experiment output directories
-runs/
-results/
-plots/
-videos/
-multiseed_results/
