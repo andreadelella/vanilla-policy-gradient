@@ -103,8 +103,10 @@ def plot_comparison(rewards_dict, save_dir, env_id=""):
             plt.plot(x, rewards[0], label=label, color=color)
         else:
             mean, lower, upper = mean_confidence_interval(rewards)
-            plt.plot(x, mean, label=label, color=color)
-            plt.fill_between(x, lower, upper, alpha=0.25, color=color)
+            # Capture the line's actual color (matplotlib may auto-assign it when
+            # color is None) so the CI band matches its mean line exactly.
+            line, = plt.plot(x, mean, label=label, color=color)
+            plt.fill_between(x, lower, upper, alpha=0.25, color=line.get_color())
 
     title = f"GPOMDP vs NPG — {env_id}" if env_id else "GPOMDP vs NPG"
     plt.xlabel("Iteration")

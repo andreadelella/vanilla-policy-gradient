@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "experiment": "fixed_policy_undamped_empirical_fisher",
+  "env_id": "HalfCheetah-v5",
+  "widths": [
+    4,
+    8,
+    16
+  ],
+  "depth": 2,
+  "iterations": 10,
+  "n_envs": 32,
+  "trajectories_per_env": 4,
+  "horizon": 200,
+  "seed": 23,
+  "output_dir": "/Users/adelella/Documents/Useful/More/pj/vanilla-policy-gradient/fisher_analysis/results/halfcheetah_width_sweep",
+  "dtype": "float64",
+  "damping": 0.0,
+  "init_log_std": -0.5,
+  "learn_std": true,
+  "score_batch_size": 1024,
+  "vectorization": "gymnasium.vector.AsyncVectorEnv",
+  "multiprocessing_context": "fork",
+  "rank_definition": "eigenvalues > P * eps(float64) * max(abs(eigenvalues))",
+  "effective_rank_definition": "exp(entropy(positive_eigenvalues / positive_trace))",
+  "stable_rank_definition": "sum(positive_eigenvalues^2) / largest_eigenvalue^2",
+  "seed_schedule": {
+    "policy": "(seed + 10007 * width) mod (2^63 - 1)",
+    "environment": "(seed + 1000003 + flattened episode index) mod 2^32",
+    "action": "(seed + 2000003 + 100003 * width + iteration) mod (2^63 - 1)"
+  },
+  "policy_seeds": {
+    "4": 40051,
+    "8": 80079,
+    "16": 160135
+  },
+  "parameter_dimensions": {
+    "4": 128,
+    "8": 276,
+    "16": 668
+  }
+}
