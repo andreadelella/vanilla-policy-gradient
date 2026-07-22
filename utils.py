@@ -83,7 +83,13 @@ def mean_confidence_interval(data):
     return mean, mean - margin, mean + margin
 
 
-def plot_comparison(rewards_dict, save_dir, env_id=""):
+def plot_comparison(
+    rewards_dict,
+    save_dir,
+    env_id="",
+    title=None,
+    filename="comparison.png",
+):
     """
     rewards_dict: {algo_name: array of shape [n_seeds, n_iters] or [1, n_iters]}
 
@@ -108,7 +114,8 @@ def plot_comparison(rewards_dict, save_dir, env_id=""):
             line, = plt.plot(x, mean, label=label, color=color)
             plt.fill_between(x, lower, upper, alpha=0.25, color=line.get_color())
 
-    title = f"GPOMDP vs NPG — {env_id}" if env_id else "GPOMDP vs NPG"
+    if title is None:
+        title = f"GPOMDP vs NPG — {env_id}" if env_id else "GPOMDP vs NPG"
     plt.xlabel("Iteration")
     plt.ylabel("Average training return")
     plt.title(title)
@@ -117,7 +124,7 @@ def plot_comparison(rewards_dict, save_dir, env_id=""):
     plt.tight_layout()
 
     os.makedirs(save_dir, exist_ok=True)
-    save_path = os.path.join(save_dir, "comparison.png")
+    save_path = os.path.join(save_dir, filename)
     plt.savefig(save_path, dpi=300)
     plt.close()
     print(f"Saved comparison plot: {save_path}")
@@ -159,16 +166,21 @@ def plot_seed_ci(curves, save_path=None, title="Training reward across seeds",
         print(f"Saved CI plot: {save_path}")
 
 
-def plot_training_curves(training_rewards, save_dir="plots"):
+def plot_training_curves(
+    training_rewards,
+    save_dir="plots",
+    title="Training reward",
+    filename="training_rewards.png",
+):
     os.makedirs(save_dir, exist_ok=True)
 
     plt.figure()
     plt.plot(training_rewards)
     plt.xlabel("Iteration")
     plt.ylabel("Average training return")
-    plt.title("Training reward")
+    plt.title(title)
     plt.grid(True)
-    plt.savefig(os.path.join(save_dir, "training_rewards.png"), dpi=300)
+    plt.savefig(os.path.join(save_dir, filename), dpi=300)
     plt.close()
 
 
