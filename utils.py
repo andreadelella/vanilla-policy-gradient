@@ -5,6 +5,8 @@ import gymnasium as gym
 import imageio
 import torch
 
+# Comment key: M says what the function does. A says how it works and why.
+
 
 _ALGO_STYLES = {
     "gpomdp": {"color": "steelblue",  "label": "GPOMDP (Adam)"},
@@ -50,16 +52,23 @@ _T_CRITICAL_95 = (
 )
 
 
+#M: Returns the number used to build a two-sided 95% Student-t interval.
+#A: Uses exact table values for small samples and a close approximation for large samples.
 def student_t_critical_95(n_samples):
     """Return the two-sided 95% Student-t critical value for a sample mean."""
+    # We need at least two samples to estimate variation between samples.
     if n_samples < 2:
         raise ValueError("At least two independent samples are required for a confidence interval")
 
+    # Estimating the sample mean uses one degree of freedom.
     degrees_of_freedom = n_samples - 1
+
+    # Small samples need the larger Student-t values stored in the table above.
     if degrees_of_freedom <= 30:
         return _T_CRITICAL_95[degrees_of_freedom]
 
-    # Asymptotic expansion of the t quantile around z_(0.975).
+    # With many samples, Student-t approaches the normal value 1.96.
+    # This formula gives a close value without requiring SciPy.
     z = 1.959963984540054
     df = float(degrees_of_freedom)
     return (
@@ -71,18 +80,32 @@ def student_t_critical_95(n_samples):
     )
 
 
+#M: Calculates the mean and its two-sided 95% confidence interval.
+#A: Measures variation across independent samples and uses Student-t because
+#   the true population variation is unknown.
 def mean_confidence_interval(data):
     """Mean and two-sided 95% Student-t interval across independent samples."""
+    # Axis 0 contains the independent samples, usually different training seeds.
     data = np.asarray(data, dtype=np.float64)
     if data.ndim == 0 or data.shape[0] < 2:
         raise ValueError("At least two independent samples are required for a confidence interval")
 
+    # Calculate the mean at every position, such as every training iteration.
     mean = data.mean(axis=0)
+
+    # Standard error = sample standard deviation / square root of sample count.
+    # ddof=1 makes this the sample standard deviation.
     sem = data.std(axis=0, ddof=1) / np.sqrt(data.shape[0])
+
+    # The margin grows when there are few samples or when samples vary strongly.
     margin = student_t_critical_95(data.shape[0]) * sem
+
+    # Confidence interval = mean +/- margin.
     return mean, mean - margin, mean + margin
 
 
+#M: Plots reward curves for several algorithms on the same graph.
+#A: Shows one curve for a single seed or a mean with 95% confidence band for many seeds.
 def plot_comparison(
     rewards_dict,
     save_dir,
@@ -130,6 +153,8 @@ def plot_comparison(
     print(f"Saved comparison plot: {save_path}")
 
 
+#M: Plots one experiment's mean reward and 95% confidence interval across seeds.
+#A: Accepts one or many seed curves and draws a confidence band only when it can be calculated.
 def plot_seed_ci(curves, save_path=None, title="Training reward across seeds",
                  ylabel="Average training return", xlabel="Iteration", label=None):
     """Plot mean +/- 95% CI for a single run's per-seed curves.
@@ -166,6 +191,8 @@ def plot_seed_ci(curves, save_path=None, title="Training reward across seeds",
         print(f"Saved CI plot: {save_path}")
 
 
+#M: Saves a simple reward-versus-iteration plot for one training run.
+#A: Draws the supplied reward sequence and writes it as a PNG file.
 def plot_training_curves(
     training_rewards,
     save_dir="plots",
@@ -184,6 +211,8 @@ def plot_training_curves(
     plt.close()
 
 
+#M: Runs a policy in an environment and saves rendered episodes as MP4 videos.
+#A: Samples actions without gradients, clips continuous actions, and stores every rendered frame.
 def record_policy_video(
     env_id,
     policy,
@@ -224,6 +253,8 @@ def record_policy_video(
     env.close()
 
 
+#M: Loads a saved policy checkpoint and records new videos from it.
+#A: Rebuilds the policy from config.json, loads its weights, and calls record_policy_video.
 def record_checkpoint_video(
     run_dir,
     checkpoint_name="best.pt",

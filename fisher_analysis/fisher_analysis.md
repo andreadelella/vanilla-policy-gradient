@@ -370,7 +370,10 @@ Each directory contains:
 
 [`eigenvalue_analysis.ipynb`](eigenvalue_analysis.ipynb)
 reloads these files, reproduces the plots, and optionally shows how NPG
-diagonal damping shifts the spectrum and condition number.
+diagonal damping shifts the spectrum and condition number. Its single
+configuration cell selects the result directory, an optional subset of saved
+widths, output directory, plot titles, damping value, and image resolution.
+All relative paths are resolved from the repository root.
 
 ## Results
 

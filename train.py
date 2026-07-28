@@ -11,12 +11,18 @@ from data_collection import collect_parallel_trajectories
 from policy import build_policy
 from gpomdp import compute_gpomdp_loss, apply_npg_preconditioning
 
+# Comment key: M says what the function does. A says how it works and why.
 
+
+#M: Loads training settings from a JSON file.
+#A: Opens the file and returns its contents as a Python dictionary.
 def load_config(path="config.json"):
     with open(path, "r") as f:
         return json.load(f)
 
 
+#M: Saves reward curves together with the seed that produced each curve.
+#A: Converts values to fixed NumPy types and stores rewards and seeds in one NPZ file.
 def save_training_rewards(output_dir, rewards, seeds, filename="training_rewards.npz"):
     """Save per-seed training curves to an .npz archive.
 
@@ -33,6 +39,8 @@ def save_training_rewards(output_dir, rewards, seeds, filename="training_rewards
     return path
 
 
+#M: Chooses the device used for policy and gradient calculations.
+#A: Auto mode tries CUDA, then Apple MPS, and finally CPU.
 def resolve_device(name=None) -> torch.device:
     """Resolve a device string to a torch.device.
 
@@ -47,9 +55,13 @@ def resolve_device(name=None) -> torch.device:
     return torch.device(name)
 
 
+#M: Prepares a function that can create one training environment.
+#A: AsyncVectorEnv needs a factory so every worker can create its own environment.
 def make_env(env_id: str, seed: int | None, horizon: int | None = None):
     # AsyncVectorEnv requires a factory (thunk) rather than an env instance
     # so each worker can construct its own isolated copy.
+    #M: Creates, limits, and seeds one environment inside a worker.
+    #A: Builds the environment only when AsyncVectorEnv starts that worker.
     def thunk():
         env = gym.make(env_id)
 
@@ -67,6 +79,9 @@ def make_env(env_id: str, seed: int | None, horizon: int | None = None):
     return thunk
 
 
+#M: Trains one policy using one random seed.
+#A: Repeatedly collects trajectories, computes the loss, updates the policy,
+#   records rewards, and saves the requested outputs.
 def run_single_training(cfg: dict):
     output_dir = cfg.get("output_dir", "runs")
     os.makedirs(output_dir, exist_ok=True)
@@ -231,6 +246,8 @@ def run_single_training(cfg: dict):
     return policy, training_rewards
 
 
+#M: Records a video using the strongest seed from a multi-seed run.
+#A: Chooses the best final-window reward, loads that seed's checkpoint, and replays it.
 def _record_best_seed_video(cfg, output_dir, all_training_rewards, seeds, final_window=100):
     """Record a video from the best-performing seed's checkpoint.
 
@@ -267,6 +284,9 @@ def _record_best_seed_video(cfg, output_dir, all_training_rewards, seeds, final_
     )
 
 
+#M: Repeats training for several seeds and keeps every reward curve.
+#A: Calls single-seed training once per seed, saves separate and combined results,
+#   and optionally records the best seed.
 def run_multiseed(cfg: dict):
     seeds = cfg.get("seeds", [cfg["seed"]])
     output_dir = cfg.get("output_dir", "runs")
@@ -316,6 +336,8 @@ def run_multiseed(cfg: dict):
         _record_best_seed_video(cfg, output_dir, all_training_rewards, seeds)
 
 
+#M: Starts single-seed or multi-seed training from a saved configuration.
+#A: Reads run_mode from the JSON config and calls the matching training function.
 def train_from_config(config_path="config.json"):
     cfg = load_config(config_path)
     run_mode = cfg.get("run_mode", "single")

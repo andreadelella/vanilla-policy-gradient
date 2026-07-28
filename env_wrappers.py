@@ -3,13 +3,15 @@ from abc import ABC, abstractmethod
 import gymnasium as gym
 from gymnasium.spaces import Box, Discrete
 
-# NOTE: not imported by run.py/train.py/data_collection.py. The actual training loop builds
-# its vectorized envs directly via gym.vector.AsyncVectorEnv + a thunk (see train.py:make_env)
-# rather than through this wrapper. This module is a standalone helper for single-env use
-# (e.g. manual/interactive experimentation, set_state-based planning) outside that loop.
+# Comment key: M says what the function does. A says how it works and why.
+
+# This helper is for single-environment experiments.
+# The main training loop uses AsyncVectorEnv instead.
 
 
 class BaseEnv(ABC):
+    #M: Creates a simple wrapper around one Gymnasium environment.
+    #A: Stores its spaces, dimensions, horizon, and discount setting.
     def __init__(self, env_id: str, horizon: int = 0, gamma: float = 0.99):
         assert 0.0 <= gamma <= 1.0
 
@@ -34,13 +36,16 @@ class BaseEnv(ABC):
         else:
             raise ValueError(f"Unsupported action space: {self.action_space}")
 
+    #M: Starts a new episode.
+    #A: Resets the step counter and passes the optional seed to Gymnasium.
     def reset(self, seed=None):
         self.time = 0
         return self.env.reset(seed=seed)
 
+    #M: Sends one action to the environment.
+    #A: Tracks elapsed steps and marks the episode truncated at the chosen horizon.
     def step(self, action):
-        # Action clipping (for Box spaces) is the caller's responsibility.
-        # See data_collection.collect_parallel_trajectories(clip_actions=...).
+        # The caller must clip continuous actions when needed.
         obs, reward, terminated, truncated, info = self.env.step(action)
         self.time += 1
 
@@ -49,24 +54,36 @@ class BaseEnv(ABC):
 
         return obs, reward, terminated, truncated, info
 
+    #M: Returns the environment's current rendered frame.
+    #A: Passes the request directly to Gymnasium.
     def render(self):
         return self.env.render()
 
+    #M: Releases the environment's resources.
+    #A: Calls Gymnasium's close method.
     def close(self):
         self.env.close()
 
+    #M: Samples a random valid action.
+    #A: Uses the environment's action space.
     def sample_action(self):
         return self.action_space.sample()
 
+    #M: Samples an example observation.
+    #A: Uses the environment's observation space.
     def sample_state(self):
         return self.observation_space.sample()
 
+    #M: Defines the interface for manually replacing environment state.
+    #A: Leaves the implementation to a specific environment wrapper.
     @abstractmethod
     def set_state(self, state):
         pass
 
 
 class GymEnvWrapper(BaseEnv):
+    #M: Handles requests to manually set a generic Gymnasium state.
+    #A: Raises an error because Gymnasium has no common set_state method.
     def set_state(self, state):
         raise NotImplementedError(
             "Generic Gymnasium environments do not expose a standard set_state method."
