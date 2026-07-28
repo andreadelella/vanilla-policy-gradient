@@ -117,6 +117,10 @@ def run_single_training(cfg: dict):
     training_rewards = []
     best_reward = float("-inf")
     best_state_dict = None
+    checkpoint_dir = os.path.join(output_dir, "checkpoints")
+    live_best_path = os.path.join(checkpoint_dir, "best.pt")
+    if cfg.get("save_checkpoints", True):
+        os.makedirs(checkpoint_dir, exist_ok=True)
 
     training_start = time.perf_counter()
 
@@ -146,6 +150,8 @@ def run_single_training(cfg: dict):
                     key: value.detach().cpu().clone()
                     for key, value in policy.state_dict().items()
                 }
+                if cfg.get("save_checkpoints", True):
+                    torch.save(best_state_dict, live_best_path)
 
             debug = iteration == 0
 
@@ -220,12 +226,12 @@ def run_single_training(cfg: dict):
         )
 
     if cfg.get("save_checkpoints", True):
-        checkpoint_dir = os.path.join(output_dir, "checkpoints")
-        os.makedirs(checkpoint_dir, exist_ok=True)
         scored = cfg.get("scored_checkpoints", False)
         if best_state_dict is not None:
             best_name = f"best_{best_reward:.1f}.pt" if scored else "best.pt"
-            torch.save(best_state_dict, os.path.join(checkpoint_dir, best_name))
+            best_path = os.path.join(checkpoint_dir, best_name)
+            if best_path != live_best_path:
+                os.replace(live_best_path, best_path)
         final_score = training_rewards[-1] if training_rewards else 0.0
         final_name = f"final_{final_score:.1f}.pt" if scored else "final.pt"
         torch.save(policy.state_dict(), os.path.join(checkpoint_dir, final_name))
