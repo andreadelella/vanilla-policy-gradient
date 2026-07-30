@@ -1,5 +1,7 @@
 """Estimate undamped empirical Fisher spectra for fixed random policies."""
 
+# Comment key: M says what the function does. A says how it works and why.
+
 from __future__ import annotations
 
 import argparse
@@ -40,6 +42,8 @@ class RolloutBatch:
     invalid_sample_count: int
 
 
+#M: Lists every policy parameter and where it sits in one long parameter vector.
+#A: Goes through the parameters in order and keeps a running start/end position.
 def parameter_layout(policy: torch.nn.Module) -> list[dict[str, Any]]:
     """Return the named-parameter order used to flatten score gradients."""
     layout: list[dict[str, Any]] = []
@@ -60,6 +64,8 @@ def parameter_layout(policy: torch.nn.Module) -> list[dict[str, Any]]:
     return layout
 
 
+#M: Saves an exact copy of the policy before the analysis starts.
+#A: Copies every value to CPU so we can later check that the policy never changed.
 def _state_dict_snapshot(policy: torch.nn.Module) -> dict[str, torch.Tensor]:
     return {
         name: tensor.detach().cpu().clone()
@@ -67,6 +73,8 @@ def _state_dict_snapshot(policy: torch.nn.Module) -> dict[str, torch.Tensor]:
     }
 
 
+#M: Checks that the analysis did not train or change the policy.
+#A: Compares the current policy with the saved copy and checks that no gradients remain.
 def _assert_policy_unchanged(
     policy: torch.nn.Module,
     initial_state: dict[str, torch.Tensor],
@@ -81,10 +89,14 @@ def _assert_policy_unchanged(
         raise AssertionError("Fisher analysis unexpectedly populated parameter gradients")
 
 
+#M: Gives each network width its own repeatable policy seed.
+#A: Combines the main seed with the width, so rerunning the experiment gives the same policy.
 def _policy_seed(base_seed: int, width: int) -> int:
     return int((base_seed + 10_007 * width) % (2**63 - 1))
 
 
+#M: Gives every episode its own repeatable environment seed.
+#A: Combines the iteration, episode, and environment numbers into one unique number.
 def _environment_seed(
     base_seed: int,
     iteration: int,
@@ -100,19 +112,27 @@ def _environment_seed(
     return int((base_seed + 1_000_003 + episode_index) % (2**32))
 
 
+#M: Gives action sampling a repeatable seed for each width and iteration.
+#A: Combines the main seed, width, and iteration so the same actions can be reproduced.
 def _action_seed(base_seed: int, width: int, iteration: int) -> int:
     return int(
         (base_seed + 2_000_003 + 100_003 * width + iteration) % (2**63 - 1)
     )
 
 
+#M: Prepares a small function that can create an environment.
+#A: AsyncVectorEnv needs a function, not an already-created environment.
 def _make_env_factory(env_id: str):
+    #M: Creates one environment when a worker starts.
+    #A: Each worker calls gym.make itself, so environments are not shared.
     def make_env():
         return gym.make(env_id)
 
     return make_env
 
 
+#M: Chooses how the parallel environment workers are started.
+#A: Uses fork when available because it normally uses less memory; otherwise uses the default.
 def _multiprocessing_context() -> str | None:
     # Fork keeps a 32-worker MuJoCo vector environment memory-efficient on
     # Unix. Fall back to the platform default where fork is unavailable.
@@ -123,6 +143,8 @@ def _multiprocessing_context() -> str | None:
     )
 
 
+#M: Uses the fixed policy to choose an action for every given state.
+#A: Uses a fixed random generator and does not save gradients because no training happens here.
 def _sample_policy_actions(
     policy: torch.nn.Module,
     observations: Sequence[np.ndarray],
@@ -155,6 +177,9 @@ def _sample_policy_actions(
     return actions.detach().cpu().numpy()
 
 
+#M: Runs episodes with the fixed policy and saves the visited states and sampled actions.
+#A: Runs many environments in parallel, keeps only valid samples, and uses fixed seeds.
+#   For continuous actions, it saves the original action but clips the action sent to the environment.
 def collect_fixed_policy_batch(
     policy: torch.nn.Module,
     envs: gym.vector.VectorEnv,
@@ -166,9 +191,12 @@ def collect_fixed_policy_batch(
     width: int,
 ) -> RolloutBatch:
     """Collect fresh seeded trajectories from asynchronously stepped environments."""
+    # This generator controls only the policy's random action choices.
+    # Using the same seed makes the sampled actions repeatable.
     action_generator = torch.Generator(device="cpu")
     action_generator.manual_seed(_action_seed(base_seed, width, iteration))
 
+    # These lists collect data from every environment and episode.
     collected_states: list[np.ndarray] = []
     collected_actions: list[np.ndarray] = []
     episode_returns: list[float] = []
@@ -178,7 +206,9 @@ def collect_fixed_policy_batch(
     action_space = envs.single_action_space
     continuous_actions = isinstance(action_space, gym.spaces.Box)
 
+    # One pass starts one new episode in every parallel environment.
     for trajectory_index in range(trajectories_per_env):
+        # Give each environment a different but repeatable reset seed.
         env_seeds = [
             _environment_seed(
                 base_seed,
@@ -191,10 +221,13 @@ def collect_fixed_policy_batch(
             for env_index in range(n_envs)
         ]
         observations, _ = envs.reset(seed=env_seeds)
+
+        # active[i] is True while environment i is still running its episode.
         active = np.ones(n_envs, dtype=bool)
         running_returns = np.zeros(n_envs, dtype=np.float64)
         running_lengths = np.zeros(n_envs, dtype=np.int64)
 
+        # The vector environment always expects one action for every worker,
         if continuous_actions:
             full_actions = np.zeros(
                 (n_envs, *action_space.shape),
@@ -204,6 +237,7 @@ def collect_fixed_policy_batch(
             full_actions = np.zeros(n_envs, dtype=np.int64)
 
         while np.any(active):
+            # Ask the policy for actions only for episodes that are still running.
             active_indices = np.flatnonzero(active)
             active_observations = observations[active_indices]
             raw_actions = _sample_policy_actions(
@@ -212,6 +246,8 @@ def collect_fixed_policy_batch(
                 action_generator,
             )
 
+            # Ignore samples containing NaN or infinity because they would make
+            # the Fisher matrix invalid.
             finite_states = np.all(
                 np.isfinite(active_observations),
                 axis=tuple(range(1, active_observations.ndim)),
@@ -225,6 +261,8 @@ def collect_fixed_policy_batch(
                 )
             valid_samples = finite_states & finite_actions
             if np.any(valid_samples):
+                # Save the state and the original action sampled by the policy.
+                # The Fisher needs this original action, not a clipped version.
                 collected_states.append(
                     np.asarray(
                         active_observations[valid_samples],
@@ -239,8 +277,12 @@ def collect_fixed_policy_batch(
                 )
             invalid_sample_count += int(np.count_nonzero(~valid_samples))
 
+            # Start with zero actions for finished workers, then fill in actions
+            # for workers that are still active.
             full_actions[...] = 0
             if continuous_actions:
+                # Continuous environments have action limits. Clipping is only
+                # for the environment step; raw_actions above remain unchanged.
                 full_actions[active_indices] = np.clip(
                     raw_actions,
                     action_space.low,
@@ -252,25 +294,36 @@ def collect_fixed_policy_batch(
                     copy=False,
                 )
 
+            # Step all workers together, as required by the vector environment.
             next_observations, rewards, terminated, truncated, _ = envs.step(
                 full_actions
             )
+
+            # Update the total reward and length of each active episode.
             running_returns[active_indices] += rewards[active_indices]
             running_lengths[active_indices] += 1
 
+            # An episode ends naturally, through Gymnasium's time limit, or
+            # through the optional horizon set for this analysis.
             reached_horizon = np.zeros(n_envs, dtype=bool)
             if horizon > 0:
                 reached_horizon = running_lengths >= horizon
             finished = active & (terminated | truncated | reached_horizon)
             if np.any(finished):
+                # Save final episode statistics and stop using these workers
+                # until the next outer-loop reset.
                 episode_returns.extend(running_returns[finished].tolist())
                 episode_lengths.extend(running_lengths[finished].tolist())
                 active[finished] = False
+
+            # Finished workers may already contain an auto-reset observation,
+            # but they are ignored because active is now False for them.
             observations = next_observations
 
     if not collected_states:
         raise RuntimeError("Rollout collection produced no finite state/action samples")
 
+    # Join the small pieces into the arrays used by the Fisher calculation.
     action_dtype = np.float64 if continuous_actions else np.int64
     return RolloutBatch(
         states=np.concatenate(collected_states, axis=0, dtype=np.float64),
@@ -281,6 +334,9 @@ def collect_fixed_policy_batch(
     )
 
 
+#M: Builds the Fisher matrix, which measures how strongly each parameter direction changes the policy.
+#A: For each state-action sample, finds the gradient of log probability, combines
+#   the gradients as F = S^T S / M, and works in small batches to save memory.
 def compute_empirical_fisher(
     policy: torch.nn.Module,
     states: np.ndarray | torch.Tensor,
@@ -323,6 +379,8 @@ def compute_empirical_fisher(
         device="cpu",
     )
 
+    #M: Finds the log probability of one action at one state.
+    #A: Uses the supplied policy values and handles both continuous and discrete actions.
     def single_log_prob(
         functional_params: dict[str, torch.Tensor],
         state: torch.Tensor,
@@ -345,6 +403,16 @@ def compute_empirical_fisher(
         raise ValueError("policy parameter and buffer names overlap")
 
     sample_count = state_tensor.shape[0]
+
+
+    # functional_grad changes single_log_prob into:
+    #     one state + one action -> one score
+    #
+    # vmap then runs that calculation for every state-action pair:
+    #     many states + many actions -> many scores
+    #
+    # The same params are used each time (None), while states and actions
+    # are read row by row (0, 0).
     score_function = vmap(
         functional_grad(single_log_prob, argnums=0),
         in_dims=(None, 0, 0),
@@ -358,12 +426,22 @@ def compute_empirical_fisher(
         else:
             batch_actions = batch_actions.to(torch.float64)
 
+        # Compute one separate score for every sample in this batch.
         per_parameter_scores = score_function(
             params,
             batch_states,
             batch_actions,
         )
         batch_size = stop - start
+
+        # Each dictionary entry contains one gradient per sample for one parameter.
+        # First, flatten each parameter's gradient:
+        #     [batch_size, parameter shape] -> [batch_size, parameter size]
+        #
+        # Then join all parameters side by side:
+        #     score_matrix shape = [batch_size, total parameter count]
+        #
+        # Each row is one sample. Each column is one policy parameter.
         score_matrix = torch.cat(
             [
                 per_parameter_scores[name].reshape(batch_size, -1)
@@ -371,29 +449,41 @@ def compute_empirical_fisher(
             ],
             dim=1,
         ).detach().to(torch.float64)
+
+        # Add S^T S for this batch. After all batches, divide by the total
+        # number of samples to obtain the average empirical Fisher.
         fisher_sum.addmm_(score_matrix.T, score_matrix)
 
     return fisher_sum / sample_count
 
 
+#M: Turns the Fisher matrix into eigenvalues and the summary numbers shown in the results.
+#A: Checks that the matrix is valid, sorts directions from strongest to weakest,
+#   and ignores values too small to separate from computer rounding.
 def analyze_fisher(
     fisher: np.ndarray | torch.Tensor,
     *,
     sample_count: int,
 ) -> tuple[np.ndarray, dict[str, float | int], float, float]:
     """Validate a Fisher matrix and derive its descending eigenspectrum metrics."""
+    # Convert the input to one CPU NumPy matrix in float64.
     matrix = (
         fisher.detach().cpu().numpy()
         if isinstance(fisher, torch.Tensor)
         else np.asarray(fisher)
     )
     matrix = np.asarray(matrix, dtype=np.float64)
+
+    # A Fisher matrix must be square and contain only real finite numbers.
     if matrix.ndim != 2 or matrix.shape[0] != matrix.shape[1]:
         raise ValueError("fisher must be a square matrix")
     if not np.all(np.isfinite(matrix)):
         raise AssertionError("Fisher matrix contains non-finite values")
 
     dimension = matrix.shape[0]
+
+    # A Fisher should equal its transpose. Allow only the tiny difference
+    # caused by computer rounding.
     matrix_scale = max(1.0, float(np.max(np.abs(matrix), initial=0.0)))
     symmetry_tolerance = 64.0 * dimension * np.finfo(np.float64).eps * matrix_scale
     symmetry_error = float(np.max(np.abs(matrix - matrix.T), initial=0.0))
@@ -403,12 +493,20 @@ def analyze_fisher(
             f"max error {symmetry_error:.3e} > {symmetry_tolerance:.3e}"
         )
 
+    # Eigenvalues measure the strength of independent parameter directions.
+    # Sort them from strongest to weakest.
     eigenvalues = np.linalg.eigvalsh(matrix)[::-1].copy()
     spectral_scale = float(np.max(np.abs(eigenvalues), initial=0.0))
+
+    # Values below rank_tolerance are too small to distinguish from rounding,
+    # so they are treated as zero when rank is calculated.
     rank_tolerance = max(
         dimension * np.finfo(np.float64).eps * spectral_scale,
         np.finfo(np.float64).tiny,
     )
+
+    # A true Fisher cannot have negative eigenvalues. We still allow a very
+    # small negative value because numerical calculations are not exact.
     psd_tolerance = max(
         100.0 * rank_tolerance,
         1e-12 * max(1.0, spectral_scale),
@@ -421,6 +519,9 @@ def analyze_fisher(
             f"< {-psd_tolerance:.3e}"
         )
 
+    # The trace can be calculated in two equal ways:
+    # sum of the matrix diagonal = sum of all eigenvalues.
+    # Checking both catches mistakes in the matrix or eigenvalue calculation.
     trace = float(np.trace(matrix))
     eigenvalue_sum = float(np.sum(eigenvalues))
     if not np.isclose(
@@ -433,30 +534,47 @@ def analyze_fisher(
             f"Fisher trace {trace:.16e} != eigenvalue sum {eigenvalue_sum:.16e}"
         )
 
+    # Keep only directions that are clearly larger than numerical zero.
     positive = eigenvalues[eigenvalues > rank_tolerance]
     numerical_rank = int(positive.size)
     positive_trace = float(np.sum(positive))
     if numerical_rank:
+        # Each value is now its share of the total positive trace.
         probabilities = positive / positive_trace
+
+        # Effective rank estimates how many directions meaningfully share the trace.
         effective_rank = float(
             np.exp(-np.sum(probabilities * np.log(probabilities)))
         )
+
+        # Stable rank is near 1 when one direction dominates and grows when
+        # several directions have similar strength.
         stable_rank = float(np.sum(positive**2) / positive[0] ** 2)
+
+        # Condition number compares the strongest retained direction with the weakest.
         condition_number = float(positive[0] / positive[-1])
+
+        # cumulative[k] is the fraction of trace kept by the first k+1 directions.
         cumulative = np.cumsum(positive) / positive_trace
 
+        #M: Finds how many strongest directions are needed to keep a chosen amount of trace.
+        #A: Adds eigenvalues from largest to smallest and stops at the requested percentage.
         def components_for(fraction: float) -> int:
             return int(np.searchsorted(cumulative, fraction, side="left") + 1)
 
     else:
+        # A zero Fisher has no active parameter directions.
         effective_rank = 0.0
         stable_rank = 0.0
         condition_number = math.nan
 
+        #M: Handles the special case where the Fisher contains no useful direction.
+        #A: Returns zero because there are no positive eigenvalues to count.
         def components_for(fraction: float) -> int:
             del fraction
             return 0
 
+    # Collect the values written to summary.csv.
     metrics: dict[str, float | int] = {
         "matrix_dimension": dimension,
         "sample_count": int(sample_count),
@@ -471,20 +589,33 @@ def analyze_fisher(
         "minimum_eigenvalue": minimum_eigenvalue,
         "symmetry_error": symmetry_error,
     }
+
+    # Return the full spectrum, readable summary, and the two numerical thresholds.
     return eigenvalues, metrics, rank_tolerance, psd_tolerance
 
 
+#M: Creates the three plots used to understand the Fisher eigenvalues.
+#A: Shows raw size, each direction's share of trace, and how fast total trace is collected.
 def _plot_spectra(
     spectra: Sequence[dict[str, Any]],
     output_dir: Path,
 ) -> None:
+    # Give each network width a consistent color in all three plots.
     colors = ["#176B87", "#C2410C", "#3F6212", "#7E22CE", "#374151"]
 
+    # Plot 1: raw eigenvalues.
+    # This shows the actual strength of every Fisher direction.
     figure, axis = plt.subplots(figsize=(7.2, 4.5))
     for index, spectrum in enumerate(spectra):
         eigenvalues = spectrum["eigenvalues"]
+
+        # A logarithmic axis cannot display zero or negative values.
+        # Replace them only for drawing; the saved eigenvalues are not changed.
         floor = max(spectrum["rank_tolerance"], np.finfo(np.float64).tiny)
         plotted = np.maximum(eigenvalues, floor)
+
+        # The eigenvalues are already sorted from strongest to weakest.
+        # The x-axis starts at 1 because it represents component numbers.
         axis.semilogy(
             np.arange(1, eigenvalues.size + 1),
             plotted,
@@ -500,11 +631,18 @@ def _plot_spectra(
     figure.savefig(output_dir / "raw_eigenspectrum.png", dpi=180)
     plt.close(figure)
 
+    # Plot 2: trace-normalized eigenvalues.
+    # This shows each direction's share of the total Fisher trace.
     figure, axis = plt.subplots(figsize=(7.2, 4.5))
     for index, spectrum in enumerate(spectra):
         eigenvalues = spectrum["eigenvalues"]
         trace = spectrum["trace"]
+
+        # Divide by trace so policies with different total sensitivity can be
+        # compared by how concentrated their eigenvalues are.
         normalized = eigenvalues / trace if trace > 0 else np.zeros_like(eigenvalues)
+
+        # Scale the plotting floor in the same way as the eigenvalues.
         normalized_floor = (
             spectrum["rank_tolerance"] / trace
             if trace > 0
@@ -525,12 +663,21 @@ def _plot_spectra(
     figure.savefig(output_dir / "trace_normalized_eigenspectrum.png", dpi=180)
     plt.close(figure)
 
+    # Plot 3: cumulative explained trace.
+    # This shows how much total sensitivity is kept by the first K directions.
     figure, axis = plt.subplots(figsize=(7.2, 4.5))
     for index, spectrum in enumerate(spectra):
+        # Work on a copy so cleaning tiny numerical errors does not change the
+        # original saved eigenvalues.
         eigenvalues = spectrum["eigenvalues"].copy()
+
+        # A Fisher should not have negative eigenvalues. Values close to zero
+        # can become slightly negative from rounding, so clamp only those.
         tolerance_level = np.abs(eigenvalues) <= spectrum["psd_tolerance"]
         eigenvalues[tolerance_level] = np.maximum(eigenvalues[tolerance_level], 0.0)
         total = float(np.sum(eigenvalues))
+
+        # cumulative[K-1] is the trace fraction kept by the first K directions.
         cumulative = (
             np.cumsum(eigenvalues) / total
             if total > 0
@@ -542,6 +689,8 @@ def _plot_spectra(
             color=colors[index % len(colors)],
             label=f"width {spectrum['width']}",
         )
+
+    # These lines show where each curve reaches 90%, 95%, and 99% of trace.
     for threshold in (0.90, 0.95, 0.99):
         axis.axhline(threshold, color="#6B7280", linewidth=0.8, linestyle="--")
     axis.set_ylim(0.0, 1.01)
@@ -555,6 +704,8 @@ def _plot_spectra(
     plt.close(figure)
 
 
+#M: Saves result rows in a CSV file.
+#A: Uses the first row for column names and lets Python handle CSV formatting.
 def _write_csv(path: Path, rows: Sequence[dict[str, Any]]) -> None:
     if not rows:
         raise ValueError(f"Cannot write empty CSV file: {path}")
@@ -564,6 +715,8 @@ def _write_csv(path: Path, rows: Sequence[dict[str, Any]]) -> None:
         writer.writerows(rows)
 
 
+#M: Checks the experiment settings before doing expensive work.
+#A: Stops early when widths or rollout counts are missing, repeated, or invalid.
 def _validate_args(args: argparse.Namespace) -> None:
     if not args.widths or any(width <= 0 for width in args.widths):
         raise ValueError("--widths must contain positive integers")
@@ -578,6 +731,8 @@ def _validate_args(args: argparse.Namespace) -> None:
         raise ValueError("--horizon must be non-negative")
 
 
+#M: Defines the command-line options for the Fisher experiment.
+#A: Gives each option a type and a default value, then returns the parser.
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Analyze undamped empirical Fisher spectra of fixed policies.",
@@ -595,7 +750,11 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+#M: Runs the full experiment for every requested network width.
+#A: Creates a fixed policy, collects samples, builds and studies its Fisher matrix,
+#   checks that the policy stayed unchanged, and saves all tables, plots, and data.
 def run_analysis(args: argparse.Namespace) -> list[dict[str, Any]]:
+    # 1. Create output folders and save the experiment settings.
     _validate_args(args)
     output_dir = args.output_dir.expanduser().resolve()
     checkpoint_dir = output_dir / "checkpoints"
@@ -647,6 +806,7 @@ def run_analysis(args: argparse.Namespace) -> list[dict[str, Any]]:
     spectra: list[dict[str, Any]] = []
     parameter_dimensions: dict[str, int] = {}
 
+    # 2. Start the parallel environments.
     vector_env_kwargs: dict[str, Any] = {
         "autoreset_mode": gym.vector.AutoresetMode.NEXT_STEP,
     }
@@ -658,6 +818,7 @@ def run_analysis(args: argparse.Namespace) -> list[dict[str, Any]]:
     )
     probe_env = gym.make(args.env_id)
     try:
+        # 3. Build and analyze one fixed policy for each width.
         for width in args.widths:
             policy_seed = _policy_seed(args.seed, width)
             torch.manual_seed(policy_seed)
@@ -794,9 +955,11 @@ def run_analysis(args: argparse.Namespace) -> list[dict[str, Any]]:
                 f"condition={metrics['positive_condition_number']:.3e}"
             )
     finally:
+        # 4. Always close the environments.
         probe_env.close()
         parallel_envs.close()
 
+    # 5. Save the final tables and plots.
     config["parameter_dimensions"] = parameter_dimensions
     with (output_dir / "config.json").open("w", encoding="utf-8") as handle:
         json.dump(config, handle, indent=2)
@@ -807,6 +970,8 @@ def run_analysis(args: argparse.Namespace) -> list[dict[str, Any]]:
     return summary_rows
 
 
+#M: Starts the Fisher analysis from the command line.
+#A: Reads the options, runs the experiment, and prints simple errors for invalid settings.
 def main(argv: Sequence[str] | None = None) -> None:
     parser = build_parser()
     args = parser.parse_args(argv)

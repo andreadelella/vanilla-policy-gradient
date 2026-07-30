@@ -4,11 +4,17 @@ import os
 
 from train import train_from_config
 
+# Comment key: M says what the function does. A says how it works and why.
 
+
+#M: Converts a command-line 0 or 1 into a Python Boolean.
+#A: Changes the value to an integer first, then converts it to True or False.
 def str_to_bool(x):
     return bool(int(x))
 
 
+#M: Converts text such as "32,32" into a list of hidden-layer sizes.
+#A: Splits at commas, converts each part to an integer, and rejects invalid sizes.
 def parse_hidden_sizes(value: str):
     sizes = [int(v.strip()) for v in value.split(",") if v.strip()]
     if not sizes or any(size <= 0 for size in sizes):
@@ -16,6 +22,8 @@ def parse_hidden_sizes(value: str):
     return sizes
 
 
+#M: Builds the training configuration from the parsed command-line arguments.
+#A: Collects all settings in one dictionary and converts special values to their final types.
 def build_config(args):
     return {
         "run_mode": args.run_mode,
@@ -64,6 +72,8 @@ _BOOL_KEYS = {
 }
 
 
+#M: Uses values from config.json as command-line defaults.
+#A: Loads the file, converts values to argparse's expected format, and lets explicit CLI values override them.
 def _apply_file_config(parser, config_path="config.json"):
     """Promote config.json values to argparse defaults.
 
@@ -89,6 +99,8 @@ def _apply_file_config(parser, config_path="config.json"):
     parser.set_defaults(**overrides)
 
 
+#M: Prints the main environment, batch, and algorithm settings before training.
+#A: Reads the resolved configuration and shows the values most useful for checking a run.
 def _print_algo_header(cfg):
     print(f"Environment  : {cfg['env_id']}")
     print(f"Mode         : {cfg['run_mode']}")
@@ -100,6 +112,8 @@ def _print_algo_header(cfg):
         print(f"Algorithm    : GPOMDP (Adam, lr={cfg['lr']})")
 
 
+#M: Reads command-line options and starts a training run.
+#A: Builds the parser, merges defaults, saves the final config, and passes it to train.py.
 def main():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter

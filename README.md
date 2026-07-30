@@ -26,7 +26,7 @@ The repository also includes:
 - a standalone environment wrapper ([env_wrappers.py](env_wrappers.py)) for single-env experimentation outside the vectorised loop.
 - a fixed-policy empirical Fisher eigenspectrum analysis for studying local
   policy compression on Hopper, HalfCheetah, and Swimmer
-  ([full report](fisher_analysis/fisher_analysis.md)).
+  ([analysis documentation](fisher_analysis/fisher_analysis.md)).
 
 ## Installation
 
@@ -152,7 +152,24 @@ plots. See [`fisher_analysis/fisher_analysis.md`](fisher_analysis/fisher_analysi
 for the derivation, implementation details, full results, compression
 interpretation, limitations, and verification record. The
 [`eigenvalue_analysis.ipynb`](fisher_analysis/eigenvalue_analysis.ipynb)
-notebook reproduces the plots and supports `FISHER_RESULTS_DIR` as an override.
+notebook reproduces the plots from a single configuration cell. Select a
+result directory, all or some saved widths, an output directory, plot titles,
+and the optional NPG damping view:
+
+```python
+RESULTS_DIR = "fisher_analysis/results/hopper_width_sweep"
+WIDTHS = None  # Uses every width in RESULTS_DIR/config.json; or e.g. [4, 16].
+OUTPUT_DIR = "fisher_analysis/results/hopper_width_sweep"
+
+RAW_TITLE = "Undamped empirical Fisher eigenspectrum"
+NORMALIZED_TITLE = "Trace-normalized Fisher eigenspectrum"
+CUMULATIVE_TITLE = "Cumulative Fisher trace"
+DAMPING_TITLE = "Fisher spectrum after NPG diagonal damping"
+
+SHOW_NPG_DAMPING = True
+NPG_DAMPING = 0.01
+DPI = 180
+```
 
 ## Hyperparameters
 
@@ -247,8 +264,39 @@ python3 analysis.py compare \
 
 Add `--mode best --final-window 100` to compare each group's best curve
 instead of its mean and CI. Run `python3 analysis.py <mode> --help` for all
-options. The notebooks in `notebooks/` remain available for interactive work
-and use the same reward formats.
+options.
+
+The notebooks in `notebooks/` provide the same workflows interactively. Edit
+the single configuration cell in `ci_plots.ipynb` to choose an aggregate run
+or an exact set of reward files:
+
+```python
+INPUTS = ["runs/Swimmer/gpomdp"]
+TITLE = "Swimmer GPOMDP across seeds"
+XLABEL = "Iteration"
+YLABEL = "Average training return"
+LABEL = "Mean"
+OUTPUT = "runs/Swimmer/gpomdp/training_rewards_ci.png"
+```
+
+In `comparison.ipynb`, each label can likewise contain one aggregate run or
+several exact reward files. Both mean/CI and best-seed plots are generated:
+
+```python
+RUNS = {
+    "NPG 4x4": ["runs/HalfCheetah/NPG/4x4"],
+    "NPG 8x8": ["runs/HalfCheetah/NPG/8x8"],
+    "NPG 16x16": ["runs/HalfCheetah/NPG/16x16"],
+}
+
+MEAN_TITLE = "HalfCheetah network-width comparison"
+BEST_TITLE = "HalfCheetah best-seed comparison"
+XLABEL = "Iteration"
+YLABEL = "Average training return"
+MEAN_OUTPUT = "runs/HalfCheetah/comparison.png"
+BEST_OUTPUT = "runs/HalfCheetah/best_seed_comparison.png"
+FINAL_WINDOW = 100
+```
 
 Train each variant into its own directory, then analyze them together:
 

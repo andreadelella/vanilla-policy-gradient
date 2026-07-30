@@ -5,20 +5,22 @@ import gymnasium as gym
 import numpy as np
 import torch
 
+# Comment key: M says what the function does. A says how it works and why.
+
 
 @dataclass
 class Trajectory:
     states: List[np.ndarray]
-    # Samples drawn from the policy distribution. GPOMDP and the empirical
-    # Fisher must evaluate log pi(a|s) at these actions.
+    # Original actions sampled by the policy.
     actions: List[np.ndarray]
     rewards: List[float]
     dones: List[bool]
-    # Actions actually passed to the environment. For bounded continuous
-    # spaces these may differ from `actions` because of clipping.
+    # Actions sent to the environment, possibly after clipping.
     executed_actions: List[np.ndarray] = field(default_factory=list)
 
 
+#M: Collects complete episodes from several environments running in parallel.
+#A: Batches active states through the policy and stores each worker's transitions separately.
 def collect_parallel_trajectories(
     envs,
     policy,
@@ -35,18 +37,22 @@ def collect_parallel_trajectories(
 
     all_trajectories = []
 
+    # Each pass collects one episode from every environment.
     for _ in range(n_trajectories_per_env):
         states, _ = envs.reset()
 
         n_envs = envs.num_envs
 
+        # Keep one trajectory for each environment worker.
         trajectories = [
             Trajectory(states=[], actions=[], rewards=[], dones=[])
             for _ in range(n_envs)
         ]
 
+        # True means that worker's current episode has ended.
         finished = np.zeros(n_envs, dtype=bool)
 
+        # AsyncVectorEnv needs one action slot for every worker.
         if isinstance(envs.single_action_space, gym.spaces.Box):
             full_actions = np.zeros(
                 (n_envs, *envs.single_action_space.shape),
@@ -56,15 +62,16 @@ def collect_parallel_trajectories(
             full_actions = np.zeros(n_envs, dtype=np.int64)
 
         while not np.all(finished):
+            # Run the policy only for workers that are still active.
             active_indices = np.where(~finished)[0]
-
             active_states = states[active_indices]
-            # all active states in one batch, on the policy's device
             state_tensor = torch.tensor(active_states, dtype=torch.float32, device=device)
 
-            with torch.no_grad():  # no autograd graph needed during rollouts
+            # Rollout collection does not need gradients.
+            with torch.no_grad():
                 raw_actions = policy.sample_action(state_tensor)
 
+            # Clip continuous actions only before sending them to the environment.
             if clip_actions and isinstance(envs.single_action_space, gym.spaces.Box):
                 env_actions = np.clip(
                     raw_actions,
@@ -74,24 +81,21 @@ def collect_parallel_trajectories(
             else:
                 env_actions = raw_actions
 
+            # Finished workers receive zero; their transitions are ignored.
             if isinstance(envs.single_action_space, gym.spaces.Box):
                 full_actions[:] = 0.0
             else:
                 full_actions[:] = 0
-
-            # AsyncVectorEnv requires stepping all envs simultaneously.
-            # Finished envs receive a dummy action (zero); their transitions are discarded below.
             full_actions[active_indices] = env_actions
 
+            # Step every worker together.
             next_states, rewards, terminated, truncated, _ = envs.step(full_actions)
             dones = np.logical_or(terminated, truncated)
 
+            # Save transitions only for active workers.
             for local_idx, env_idx in enumerate(active_indices):
                 trajectories[env_idx].states.append(states[env_idx].copy())
-                # The environment sees the bounded action, but the likelihood-ratio
-                # estimator is defined over the random variable sampled from the Gaussian.
-                # Using Normal.log_prob(clipped_action) would incorrectly treat boundary
-                # probability mass as an ordinary Gaussian density value.
+                # Learning uses the original sampled action, not the clipped action.
                 trajectories[env_idx].actions.append(raw_actions[local_idx].copy())
                 trajectories[env_idx].executed_actions.append(
                     env_actions[local_idx].copy()
@@ -102,12 +106,10 @@ def collect_parallel_trajectories(
                 if dones[env_idx]:
                     finished[env_idx] = True
 
-            # For envs that just finished, `next_states` holds the vector env's auto-reset
-            # observation for a *new* episode, not a terminal state. That's fine here: those
-            # indices are excluded from `active_indices` on every future iteration, so this
-            # stray reset observation is written into `states` but never read again.
+            # Auto-reset states from finished workers are ignored on the next loop.
             states = next_states
 
+        # Add this round's completed episodes to the final list.
         all_trajectories.extend(trajectories)
 
     return all_trajectories
