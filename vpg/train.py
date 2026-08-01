@@ -413,6 +413,16 @@ def run_single_training(cfg: dict):
                 snapshot_path = os.path.join(snapshot_dir, f"snapshot_iter_{iteration + 1:06d}.pt")
                 torch.save(policy.state_dict(), snapshot_path)
 
+            #M: Periodically saves the reward curve collected so far.
+            #A: Overwrites the same file the final save uses, so a run that is killed
+            #   mid-seed still leaves a loadable (truncated) curve instead of nothing.
+            if checkpoint_interval > 0 and (iteration + 1) % checkpoint_interval == 0:
+                save_training_rewards(
+                    output_dir,
+                    np.array([training_rewards], dtype=np.float32),
+                    [cfg["seed"]],
+                )
+
     finally:
         train_envs.close()
         env.close()
@@ -546,7 +556,19 @@ def run_multiseed(cfg: dict):
         )
         print(f"Saved per-seed rewards: {per_seed_path}")
 
-    # Also save the combined matrix (all seeds, labeled) for the comparison notebook.
+        # Rewrite the combined matrix after every seed, so an interrupted multiseed run
+        # still leaves a usable file covering the seeds that did finish. Seeds that ran
+        # a different number of iterations cannot share one array, so only stack the
+        # equal-length prefix group; the per-seed files above always hold the full curves.
+        completed = seeds[:len(all_training_rewards)]
+        if len({len(r) for r in all_training_rewards}) == 1:
+            save_training_rewards(
+                output_dir,
+                np.asarray(all_training_rewards, dtype=np.float32),
+                completed,
+            )
+
+    # Final combined matrix (all seeds, labeled) for the comparison notebook.
     all_training_rewards = np.asarray(all_training_rewards, dtype=np.float32)
 
     save_training_rewards(output_dir, all_training_rewards, seeds)
