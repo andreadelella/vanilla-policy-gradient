@@ -18,7 +18,7 @@ from fisher_analysis.run_fisher_analysis import (
     compute_empirical_fisher,
     parameter_layout,
 )
-from policy import GaussianPolicy
+from vpg.policy import GaussianPolicy
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]

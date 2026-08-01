@@ -1,5 +1,5 @@
 {
-  "output_dir": "runs/CartPole-v1/NPG",
+  "output_dir": "runs/CartPole-v1/npg",
   "scored_checkpoints": true,
   "run_mode": "single",
 
@@ -30,5 +30,6 @@
 
   "save_plots": true,
   "save_checkpoints": true,
+  "checkpoint_interval": 500,
   "record_video": true
 }

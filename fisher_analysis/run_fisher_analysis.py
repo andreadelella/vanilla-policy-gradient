@@ -21,7 +21,7 @@ import torch
 from torch.distributions import Categorical, Normal
 from torch.func import functional_call, grad as functional_grad, vmap
 
-from policy import build_policy
+from vpg.policy import build_policy
 
 matplotlib.use("Agg")
 from matplotlib import pyplot as plt

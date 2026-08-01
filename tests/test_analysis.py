@@ -4,7 +4,7 @@ from pathlib import Path
 
 import numpy as np
 
-from analysis import (
+from vpg.analysis import (
     load_reward_file,
     load_reward_files,
     main,

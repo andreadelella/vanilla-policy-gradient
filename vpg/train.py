@@ -6,10 +6,11 @@ import gymnasium as gym
 import numpy as np
 import torch
 
-from utils import plot_training_curves, record_policy_video
-from data_collection import collect_parallel_trajectories
-from policy import build_policy
-from gpomdp import compute_gpomdp_loss, apply_npg_preconditioning
+from vpg.plotting import plot_training_curves
+from vpg.video import record_policy_video
+from vpg.data_collection import collect_parallel_trajectories
+from vpg.policy import build_policy
+from vpg.gpomdp import compute_gpomdp_loss, apply_npg_preconditioning
 
 # Comment key: M says what the function does. A says how it works and why.
 
@@ -117,10 +118,19 @@ def run_single_training(cfg: dict):
     training_rewards = []
     best_reward = float("-inf")
     best_state_dict = None
-    checkpoint_dir = os.path.join(output_dir, "checkpoints")
-    live_best_path = os.path.join(checkpoint_dir, "best.pt")
-    if cfg.get("save_checkpoints", True):
-        os.makedirs(checkpoint_dir, exist_ok=True)
+
+    save_checkpoints = cfg.get("save_checkpoints", True)
+    policy_dir = os.path.join(output_dir, "policy")
+    live_best_path = os.path.join(policy_dir, "best.pt")
+    if save_checkpoints:
+        os.makedirs(policy_dir, exist_ok=True)
+
+    # Periodic full-policy snapshots, independent of the best/final policy above.
+    checkpoint_interval = cfg.get("checkpoint_interval", 500)
+    snapshot_dir = os.path.join(output_dir, "checkpoints")
+    save_snapshots = save_checkpoints and checkpoint_interval > 0
+    if save_snapshots:
+        os.makedirs(snapshot_dir, exist_ok=True)
 
     training_start = time.perf_counter()
 
@@ -150,7 +160,7 @@ def run_single_training(cfg: dict):
                     key: value.detach().cpu().clone()
                     for key, value in policy.state_dict().items()
                 }
-                if cfg.get("save_checkpoints", True):
+                if save_checkpoints:
                     torch.save(best_state_dict, live_best_path)
 
             debug = iteration == 0
@@ -206,6 +216,12 @@ def run_single_training(cfg: dict):
                 f"samples/s: {samples_per_sec:.0f}"
             )
 
+            #M: Periodically snapshots the policy so training progress can be inspected later.
+            #A: Saves a numbered checkpoint every `checkpoint_interval` completed iterations.
+            if save_snapshots and (iteration + 1) % checkpoint_interval == 0:
+                snapshot_path = os.path.join(snapshot_dir, f"snapshot_iter_{iteration + 1:06d}.pt")
+                torch.save(policy.state_dict(), snapshot_path)
+
     finally:
         train_envs.close()
         env.close()
@@ -225,16 +241,16 @@ def run_single_training(cfg: dict):
             save_dir=output_dir,
         )
 
-    if cfg.get("save_checkpoints", True):
+    if save_checkpoints:
         scored = cfg.get("scored_checkpoints", False)
         if best_state_dict is not None:
             best_name = f"best_{best_reward:.1f}.pt" if scored else "best.pt"
-            best_path = os.path.join(checkpoint_dir, best_name)
+            best_path = os.path.join(policy_dir, best_name)
             if best_path != live_best_path:
                 os.replace(live_best_path, best_path)
         final_score = training_rewards[-1] if training_rewards else 0.0
         final_name = f"final_{final_score:.1f}.pt" if scored else "final.pt"
-        torch.save(policy.state_dict(), os.path.join(checkpoint_dir, final_name))
+        torch.save(policy.state_dict(), os.path.join(policy_dir, final_name))
 
     if cfg.get("record_video", False):
         # Video recording feeds CPU state tensors to the policy, so run it on CPU.
@@ -258,7 +274,7 @@ def _record_best_seed_video(cfg, output_dir, all_training_rewards, seeds, final_
     """Record a video from the best-performing seed's checkpoint.
 
     "Best" = highest mean return over the last `final_window` iterations. The seed's
-    weights are loaded from output_dir/seed<seed>/checkpoints/best.pt (written during
+    weights are loaded from output_dir/seed<seed>/policy/best.pt (written during
     the multiseed loop) and replayed into output_dir/videos/.
     """
     rewards = np.asarray(all_training_rewards, dtype=np.float64)
@@ -268,7 +284,7 @@ def _record_best_seed_video(cfg, output_dir, all_training_rewards, seeds, final_
     best_seed = seeds[best_idx]
     print(f"\nBest seed: {best_seed} (final-{window} mean {scores[best_idx]:.1f}) — recording video")
 
-    checkpoint_path = os.path.join(output_dir, f"seed{best_seed}", "checkpoints", "best.pt")
+    checkpoint_path = os.path.join(output_dir, f"seed{best_seed}", "policy", "best.pt")
     if not os.path.exists(checkpoint_path):
         print(f"Warning: no checkpoint at {checkpoint_path}; skipping video")
         return
@@ -310,15 +326,13 @@ def run_multiseed(cfg: dict):
         seed_cfg["record_video"] = False   # never record during per-seed training
         seed_cfg["save_plots"] = False     # CI plot is produced downstream in the notebook
 
-        if want_video:
-            # Keep each seed's checkpoint in its own subdir so the best seed can be
-            # replayed after all seeds finish, without seeds clobbering each other.
-            seed_cfg["save_checkpoints"] = True
-            seed_cfg["scored_checkpoints"] = False  # deterministic best.pt filename
-            seed_cfg["output_dir"] = os.path.join(output_dir, f"seed{seed}")
-            os.makedirs(seed_cfg["output_dir"], exist_ok=True)
-        else:
-            seed_cfg["save_checkpoints"] = False  # per-seed checkpoints would overwrite
+        # Every seed gets its own subdir for policy/, checkpoints/, and rewards, so seeds
+        # never clobber each other and the best seed can be replayed after all finish.
+        # save_checkpoints is inherited from cfg (respects --save_checkpoints); only the
+        # filenames are forced deterministic so the best-seed video lookup always works.
+        seed_cfg["scored_checkpoints"] = False
+        seed_cfg["output_dir"] = os.path.join(output_dir, f"seed{seed}")
+        os.makedirs(seed_cfg["output_dir"], exist_ok=True)
 
         _, seed_rewards = run_single_training(seed_cfg)
 

@@ -23,10 +23,29 @@ An entropy bonus (`--entropy_coeff`) prevents policy collapse on Adam.
 This removes the dependence on the parameter scale, making NPG significantly more sample-efficient than vanilla GPOMDP in practice.
 
 The repository also includes:
-- a standalone environment wrapper ([env_wrappers.py](env_wrappers.py)) for single-env experimentation outside the vectorised loop.
+- a standalone environment wrapper ([vpg/env_wrappers.py](vpg/env_wrappers.py)) for single-env experimentation outside the vectorised loop.
 - a fixed-policy empirical Fisher eigenspectrum analysis for studying local
   policy compression on Hopper, HalfCheetah, and Swimmer
   ([analysis documentation](fisher_analysis/fisher_analysis.md)).
+
+## Project Structure
+
+```
+vpg/                  # core library: policy, GPOMDP/NPG math, training loop, plotting, video
+run.py                # CLI: launch training runs (thin wrapper around vpg.run)
+analysis.py           # CLI: post-hoc plotting of saved reward files (thin wrapper around vpg.analysis)
+tune.py               # CLI: Optuna hyperparameter search for one (env, algorithm) pair
+tune_all.py           # CLI: sweeps tune.py across every environment x algorithm
+notebooks/            # interactive equivalents of analysis.py's ci/compare workflows
+fisher_analysis/      # self-contained fixed-policy Fisher eigenspectrum experiment
+tests/                # unit tests for analysis.py
+runs/                 # experiment outputs: runs/<env_id>/<algorithm>/[<width>/[<seed>/]]
+report/               # curated figures for the write-up (see report/README.md)
+```
+
+`run.py`, `analysis.py`, `tune.py`, and `tune_all.py` stay runnable exactly as
+documented below (`python3 run.py`, `python3 analysis.py ...`); each just
+delegates to the matching module inside `vpg/`.
 
 ## Installation
 
@@ -88,9 +107,9 @@ To re-record from an existing run without retraining, use `record_checkpoint_vid
 rebuilds the policy from that run's `config.json` and loads a saved checkpoint:
 
 ```python
-from utils import record_checkpoint_video
+from vpg.video import record_checkpoint_video
 
-# Uses runs/CartPole-v1/checkpoints/best.pt and writes to runs/CartPole-v1/videos/
+# Uses runs/CartPole-v1/policy/best.pt and writes to runs/CartPole-v1/videos/
 record_checkpoint_video("runs/CartPole-v1", checkpoint_name="best.pt", n_episodes=3)
 ```
 
@@ -203,7 +222,8 @@ present). The `config.json` checked into this repo overrides several of them —
 | `--init_log_std` | `-0.5` | Initial log standard deviation of the Gaussian policy (σ ≈ 0.6). |
 | `--learn_std` | `1` | If `1`, log std is a learnable parameter. If `0`, it is fixed at `init_log_std`. |
 | `--save_plots` | `1` | Save training reward plots to `output_dir`. |
-| `--save_checkpoints` | `1` | Save `best.pt` and `final.pt` to `output_dir/checkpoints/`. |
+| `--save_checkpoints` | `1` | Save `best.pt`/`final.pt` to `output_dir/policy/` and periodic snapshots to `output_dir/checkpoints/`. |
+| `--checkpoint_interval` | `500` | Save a policy snapshot to `output_dir/checkpoints/` every N iterations. `0` disables periodic snapshots. |
 | `--record_video` | `0` | Record a video of the best policy and save it to `output_dir/videos/`. |
 
 ## Outputs
@@ -221,8 +241,9 @@ All outputs are written to `--output_dir` (default: `runs/<env_id>/`).
 | `training_rewards.png` | single mode | Per-iteration mean return over the training batch. |
 | `training_rewards_ci.png` | analysis tool/notebook | Mean training return ± 95% CI across selected `.npz` or legacy `.npy` rewards. |
 | `best_seed_comparison.png` | analysis tool/notebook | Best-performing seed of each run overlaid (`analysis.py compare --mode best`). |
-| `checkpoints/best.pt` | `--save_checkpoints 1` | Policy weights with the highest training return during learning. |
-| `checkpoints/final.pt` | `--save_checkpoints 1` | Policy weights at the end of training. |
+| `policy/best.pt` | `--save_checkpoints 1` | Policy weights with the highest training return during learning. |
+| `policy/final.pt` | `--save_checkpoints 1` | Policy weights at the end of training. |
+| `checkpoints/snapshot_iter_<N>.pt` | `--save_checkpoints 1` | Periodic policy snapshot saved every `--checkpoint_interval` iterations (default 500). |
 | `videos/` | `--record_video 1` or `record_checkpoint_video(...)` | MP4 recordings of the policy. |
 
 ### Reward analysis
@@ -243,11 +264,11 @@ Build a 95% confidence interval from an exact selection of seed files:
 
 ```bash
 python3 analysis.py ci \
-  runs/Hopper/NPG/4x4/training_rewards_seed230.npz \
-  runs/Hopper/NPG/4x4/training_rewards_seed24.npz \
-  runs/Hopper/NPG/4x4/training_rewards_seed25.npz \
+  runs/Hopper/npg/4x4/training_rewards_seed230.npz \
+  runs/Hopper/npg/4x4/training_rewards_seed24.npz \
+  runs/Hopper/npg/4x4/training_rewards_seed25.npz \
   --title "Hopper NPG 4x4" \
-  --output runs/Hopper/NPG/4x4/selected_seeds_ci.png
+  --output runs/Hopper/npg/4x4/selected_seeds_ci.png
 ```
 
 Compare different runs. Repeat `--run LABEL INPUT...`; each group may contain
@@ -255,9 +276,9 @@ one aggregate run or several selected files:
 
 ```bash
 python3 analysis.py compare \
-  --run "NPG 4x4" runs/Hopper/NPG/4x4 \
-  --run "NPG 8x8" runs/Hopper/NPG/8x8 \
-  --run "NPG 16x16" runs/Hopper/NPG/16x16 \
+  --run "NPG 4x4" runs/Hopper/npg/4x4 \
+  --run "NPG 8x8" runs/Hopper/npg/8x8 \
+  --run "NPG 16x16" runs/Hopper/npg/16x16 \
   --title "Hopper network-width comparison" \
   --output runs/Hopper/comparison.png
 ```
@@ -284,9 +305,9 @@ several exact reward files. Both mean/CI and best-seed plots are generated:
 
 ```python
 RUNS = {
-    "NPG 4x4": ["runs/HalfCheetah/NPG/4x4"],
-    "NPG 8x8": ["runs/HalfCheetah/NPG/8x8"],
-    "NPG 16x16": ["runs/HalfCheetah/NPG/16x16"],
+    "NPG 4x4": ["runs/HalfCheetah/npg/4x4"],
+    "NPG 8x8": ["runs/HalfCheetah/npg/8x8"],
+    "NPG 16x16": ["runs/HalfCheetah/npg/16x16"],
 }
 
 MEAN_TITLE = "HalfCheetah network-width comparison"

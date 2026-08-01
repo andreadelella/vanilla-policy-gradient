@@ -195,7 +195,7 @@ class GaussianPolicy(nn.Module):
 def build_policy(cfg: dict, env) -> nn.Module:
     """Construct the policy that matches `cfg` for `env`'s observation/action spaces.
 
-    Shared by training (train.py) and checkpoint replay (utils.record_checkpoint_video)
+    Shared by training (train.py) and checkpoint replay (video.record_checkpoint_video)
     so both build the exact same architecture from a config dict.
     """
     state_dim = env.observation_space.shape[0]

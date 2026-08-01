@@ -545,3 +545,6 @@ policy immutability checks, and a CartPole CLI smoke test:
 MPLCONFIGDIR=/tmp/fisher-mpl \
   .venv/bin/python -m unittest discover -s fisher_analysis/tests -v
 ```
+
+For instructions on re-running `eigenvalue_analysis.ipynb` against already-saved
+results, see [`RUN_EIGENVALUE_ANALYSIS.md`](RUN_EIGENVALUE_ANALYSIS.md).
