@@ -1,16 +1,25 @@
+import contextlib
+import csv
 import json
 import os
+import sys
 import time
 
 import gymnasium as gym
 import numpy as np
 import torch
+from torch.distributions import kl_divergence
 
 from vpg.plotting import plot_training_curves
 from vpg.video import record_policy_video
 from vpg.data_collection import collect_parallel_trajectories
 from vpg.policy import build_policy
-from vpg.gpomdp import compute_gpomdp_loss, apply_npg_preconditioning
+from vpg.gpomdp import (
+    compute_gpomdp_loss,
+    apply_npg_preconditioning,
+    compute_discounted_returns_matrix,
+    trajectories_to_tensors,
+)
 
 # Comment key: M says what the function does. A says how it works and why.
 
@@ -38,6 +47,133 @@ def save_training_rewards(output_dir, rewards, seeds, filename="training_rewards
     path = os.path.join(output_dir, filename)
     np.savez(path, rewards=rewards, seeds=seeds)
     return path
+
+
+#M: Column order for the per-iteration diagnostics log.
+#A: Fixed so the CSV header is stable and downstream readers can rely on it.
+METRIC_FIELDS = (
+    "iteration",
+    "train_reward",
+    "best_reward",
+    "kl",            # true KL(pi_old || pi_new) over the batch states, after the step
+    "grad_norm",     # ||g|| before NPG preconditioning
+    "nat_grad_norm", # ||F^-1 g|| after preconditioning (equals grad_norm for GPOMDP)
+    "entropy",       # mean policy entropy, in nats
+    "mean_std",      # mean action std; shrinking std drives Fisher curvature up
+    "return_mean",   # mean discounted return over valid steps (pre-centering)
+    "return_std",    # std of those returns; the divisor when normalize_returns is on
+    "episode_len",   # mean steps per episode
+    "rollout_time",
+    "update_time",
+    "total_time",
+)
+
+
+class _Tee:
+    """Duplicate writes to several streams (used to mirror stdout into a log file)."""
+
+    #M: Remembers every stream that should receive the output.
+    #A: Stores the streams so each write can be forwarded to all of them.
+    def __init__(self, *streams):
+        self._streams = streams
+
+    #M: Sends text to every stream.
+    #A: Flushes immediately so a killed run still has a complete log on disk.
+    def write(self, data):
+        for stream in self._streams:
+            stream.write(data)
+            stream.flush()
+        return len(data)
+
+    #M: Flushes every stream.
+    #A: Called by print() and at interpreter shutdown.
+    def flush(self):
+        for stream in self._streams:
+            stream.flush()
+
+
+#M: Mirrors everything printed inside the block into a log file.
+#A: Swaps sys.stdout/sys.stderr for a Tee, and always restores them on exit so a
+#   failure in one seed cannot leave later seeds writing to a closed file.
+@contextlib.contextmanager
+def _tee_stdout(path):
+    if path is None:
+        yield
+        return
+    with open(path, "w") as log_file:
+        original_out, original_err = sys.stdout, sys.stderr
+        sys.stdout = _Tee(original_out, log_file)
+        sys.stderr = _Tee(original_err, log_file)
+        try:
+            yield
+        finally:
+            sys.stdout, sys.stderr = original_out, original_err
+
+
+#M: Measures the total size of the current gradient across all parameters.
+#A: Concatenates every .grad into one vector so ||g|| is comparable across runs.
+def _grad_norm(policy):
+    grads = [
+        p.grad.reshape(-1) for p in policy.parameters() if p.grad is not None
+    ]
+    if not grads:
+        return float("nan")
+    return float(torch.cat(grads).norm())
+
+
+#M: Copies the current action distribution so it survives the parameter update.
+#A: Rebuilds the distribution from detached parameters, because a live distribution
+#   holds references to the policy tensors and would change under optimizer.step().
+def _frozen_distribution(policy, flat_states):
+    with torch.no_grad():
+        dist = policy.distribution(flat_states)
+        if hasattr(dist, "scale"):
+            # Gaussian: mean and std.
+            return type(dist)(dist.loc.clone(), dist.scale.clone())
+        if hasattr(dist, "logits"):
+            # Categorical: class logits.
+            return type(dist)(logits=dist.logits.clone())
+    return None
+
+
+#M: Measures the policy's action distribution over a batch of states.
+#A: Averages entropy and std so exploration collapse is visible in the log.
+def _policy_stats(policy, flat_states):
+    with torch.no_grad():
+        dist = policy.distribution(flat_states)
+        entropy = dist.entropy()
+        if entropy.dim() > 1:
+            entropy = entropy.sum(-1)
+        mean_entropy = float(entropy.mean())
+        scale = getattr(dist, "scale", None)
+        mean_std = float(scale.mean()) if scale is not None else float("nan")
+    return mean_entropy, mean_std
+
+
+#M: Measures how far the update moved the policy, in distribution space.
+#A: Compares the pre- and post-update distributions at the same states, which is
+#   the scale-free measure of NPG step size (the quadratic estimate is unreliable).
+def _measure_kl(policy, flat_states, old_dist):
+    if old_dist is None:
+        return float("nan")
+    with torch.no_grad():
+        new_dist = policy.distribution(flat_states)
+        kl = kl_divergence(old_dist, new_dist)
+        if kl.dim() > 1:
+            kl = kl.sum(-1)
+        return float(kl.mean())
+
+
+#M: Appends one row of diagnostics to the seed's metrics CSV.
+#A: Opens in append mode per row so a killed run keeps everything written so far --
+#   the reward .npz is only written after the full loop completes.
+def _append_metrics_row(path, row):
+    write_header = not os.path.exists(path)
+    with open(path, "a", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=METRIC_FIELDS)
+        if write_header:
+            writer.writeheader()
+        writer.writerow(row)
 
 
 #M: Chooses the device used for policy and gradient calculations.
@@ -132,6 +268,14 @@ def run_single_training(cfg: dict):
     if save_snapshots:
         os.makedirs(snapshot_dir, exist_ok=True)
 
+    # Per-iteration diagnostics, written incrementally so a run that is killed or
+    # collapses still leaves a complete record up to that point.
+    log_metrics = cfg.get("log_metrics", True)
+    metrics_path = os.path.join(output_dir, "metrics.csv")
+    if log_metrics and os.path.exists(metrics_path):
+        # Stale rows from an earlier run would be indistinguishable from this one's.
+        os.remove(metrics_path)
+
     training_start = time.perf_counter()
 
     try:
@@ -165,6 +309,25 @@ def run_single_training(cfg: dict):
 
             debug = iteration == 0
 
+            # Snapshot the pre-update distribution at this batch's states so the
+            # KL of the step can be measured directly after optimizer.step().
+            old_dist = None
+            flat_states = None
+            return_mean = return_std = float("nan")
+            if log_metrics:
+                states, _, raw_rewards, mask = trajectories_to_tensors(trajectories, device=device)
+                valid = mask.reshape(-1).bool()
+                flat_states = states.reshape(-1, states.shape[-1])[valid]
+                old_dist = _frozen_distribution(policy, flat_states)
+
+                valid_returns = compute_discounted_returns_matrix(
+                    rewards=raw_rewards,
+                    gamma=cfg["gamma"],
+                    implementation=cfg.get("returns_implementation", "recursive"),
+                ).reshape(-1)[valid]
+                return_mean = float(valid_returns.mean())
+                return_std = float(valid_returns.std())
+
             optimizer.zero_grad()
 
             loss = compute_gpomdp_loss(
@@ -181,6 +344,8 @@ def run_single_training(cfg: dict):
 
             loss.backward()
 
+            grad_norm = _grad_norm(policy) if log_metrics else float("nan")
+
             if cfg.get("use_npg", False):
                 # Note: re-derives states/actions/mask from `trajectories` internally
                 # (trajectories_to_tensors runs again here) rather than reusing the ones
@@ -192,6 +357,9 @@ def run_single_training(cfg: dict):
                     device=device,
                     debug=debug,
                 )
+
+            # After preconditioning .grad holds F^-1 g; this is the step SGD applies.
+            nat_grad_norm = _grad_norm(policy) if log_metrics else float("nan")
 
             optimizer.step()
 
@@ -206,10 +374,33 @@ def run_single_training(cfg: dict):
 
             training_rewards.append(batch_reward)
 
+            kl = entropy = mean_std = float("nan")
+            if log_metrics:
+                kl = _measure_kl(policy, flat_states, old_dist)
+                entropy, mean_std = _policy_stats(policy, flat_states)
+                _append_metrics_row(metrics_path, {
+                    "iteration": iteration,
+                    "train_reward": round(batch_reward, 4),
+                    "best_reward": round(best_reward, 4),
+                    "kl": f"{kl:.6e}",
+                    "grad_norm": f"{grad_norm:.6e}",
+                    "nat_grad_norm": f"{nat_grad_norm:.6e}",
+                    "entropy": round(entropy, 6),
+                    "mean_std": round(mean_std, 6),
+                    "return_mean": round(return_mean, 4),
+                    "return_std": round(return_std, 4),
+                    "episode_len": round(n_steps / len(trajectories), 2),
+                    "rollout_time": round(rollout_time, 4),
+                    "update_time": round(update_time, 4),
+                    "total_time": round(iteration_time, 4),
+                })
+
             print(
                 f"Iteration {iteration:04d} | "
                 f"train reward: {batch_reward:.2f} | "
                 f"best: {best_reward:.2f} | "
+                f"KL: {kl:.3e} | "
+                f"std: {mean_std:.4f} | "
                 f"rollout: {rollout_time:.3f}s | "
                 f"update: {update_time:.3f}s | "
                 f"total: {iteration_time:.3f}s | "
@@ -334,7 +525,15 @@ def run_multiseed(cfg: dict):
         seed_cfg["output_dir"] = os.path.join(output_dir, f"seed{seed}")
         os.makedirs(seed_cfg["output_dir"], exist_ok=True)
 
-        _, seed_rewards = run_single_training(seed_cfg)
+        # Mirror this seed's console output into its own directory, so one seed's
+        # progress is not interleaved with the others in a single combined log.
+        log_path = (
+            os.path.join(seed_cfg["output_dir"], "train.log")
+            if cfg.get("log_metrics", True)
+            else None
+        )
+        with _tee_stdout(log_path):
+            _, seed_rewards = run_single_training(seed_cfg)
 
         all_training_rewards.append(seed_rewards)
 

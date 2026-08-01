@@ -56,6 +56,7 @@ def build_config(args):
         "save_plots": str_to_bool(args.save_plots),
         "save_checkpoints": str_to_bool(args.save_checkpoints),
         "checkpoint_interval": args.checkpoint_interval,
+        "log_metrics": str_to_bool(args.log_metrics),
         "record_video": str_to_bool(args.record_video),
 
         "npg_damping": args.npg_damping,
@@ -316,6 +317,15 @@ def main():
         type=int,
         default=500,
         help="Save a policy snapshot to output_dir/checkpoints/ every N iterations. 0 disables periodic snapshots. Ignored if --save_checkpoints 0.",
+    )
+    parser.add_argument(
+        "--log_metrics",
+        type=int,
+        default=1,
+        choices=[0, 1],
+        help="Write per-iteration diagnostics (KL, gradient norms, entropy, action std, "
+             "return stats) to <seed_dir>/metrics.csv and mirror the console output to "
+             "<seed_dir>/train.log. Adds one extra forward pass per iteration.",
     )
     parser.add_argument(
         "--record_video",
