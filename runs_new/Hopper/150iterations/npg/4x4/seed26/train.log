@@ -1,0 +1,174 @@
+Device       : cpu
+
+========== GPOMDP LOSS ==========
+states shape  = (128, 82, 11)
+actions shape = (128, 82, 3)
+rewards shape = (128, 82)
+returns shape = (128, 82)
+mask shape    = (128, 82)
+log_probs shape = (128, 82)
+valid steps = 3232
+objective = -0.286044
+loss = 0.286044
+========== END GPOMDP DEBUG ==========
+
+
+========== NPG PRECONDITIONING ==========
+Fisher condition number  : 6.466e+02
+||nat_g|| / ||g||        : 0.700
+========== END NPG DEBUG ==========
+
+/Users/adelella/Documents/Useful/More/pj/vanilla-policy-gradient/vpg/train.py:127: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /Users/runner/work/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:839.)
+  return float(torch.cat(grads).norm())
+Iteration 0000 | train reward: 28.88 | best: 28.88 | KL: 1.049e-03 | std: 0.6067 | rollout: 2.215s | update: 0.107s | total: 2.321s | samples/s: 1392
+Iteration 0001 | train reward: 28.04 | best: 28.88 | KL: 1.064e-03 | std: 0.6060 | rollout: 1.746s | update: 0.051s | total: 1.797s | samples/s: 1736
+Iteration 0002 | train reward: 38.00 | best: 38.00 | KL: 1.117e-03 | std: 0.6050 | rollout: 2.046s | update: 0.093s | total: 2.140s | samples/s: 1779
+Iteration 0003 | train reward: 40.06 | best: 40.06 | KL: 1.412e-03 | std: 0.6046 | rollout: 2.207s | update: 0.080s | total: 2.287s | samples/s: 1754
+Iteration 0004 | train reward: 50.05 | best: 50.05 | KL: 1.084e-03 | std: 0.6047 | rollout: 2.847s | update: 0.065s | total: 2.912s | samples/s: 1558
+Iteration 0005 | train reward: 58.96 | best: 58.96 | KL: 2.376e-03 | std: 0.6038 | rollout: 2.398s | update: 0.144s | total: 2.542s | samples/s: 1998
+Iteration 0006 | train reward: 73.18 | best: 73.18 | KL: 2.374e-03 | std: 0.6017 | rollout: 2.671s | update: 0.019s | total: 2.690s | samples/s: 2215
+Iteration 0007 | train reward: 80.25 | best: 80.25 | KL: 2.367e-03 | std: 0.6007 | rollout: 3.566s | update: 0.088s | total: 3.654s | samples/s: 1782
+Iteration 0008 | train reward: 112.01 | best: 112.01 | KL: 4.649e-03 | std: 0.5967 | rollout: 3.708s | update: 0.142s | total: 3.850s | samples/s: 2114
+Iteration 0009 | train reward: 137.59 | best: 137.59 | KL: 2.639e-03 | std: 0.5979 | rollout: 3.666s | update: 0.071s | total: 3.738s | samples/s: 2511
+Iteration 0010 | train reward: 161.00 | best: 161.00 | KL: 3.644e-03 | std: 0.5950 | rollout: 4.246s | update: 0.049s | total: 4.295s | samples/s: 2474
+Iteration 0011 | train reward: 176.02 | best: 176.02 | KL: 4.284e-03 | std: 0.5927 | rollout: 3.784s | update: 0.170s | total: 3.954s | samples/s: 2813
+Iteration 0012 | train reward: 207.54 | best: 207.54 | KL: 2.192e-03 | std: 0.5877 | rollout: 4.303s | update: 0.060s | total: 4.364s | samples/s: 2992
+Iteration 0013 | train reward: 217.22 | best: 217.22 | KL: 1.541e-03 | std: 0.5884 | rollout: 4.157s | update: 0.172s | total: 4.329s | samples/s: 3172
+Iteration 0014 | train reward: 214.17 | best: 217.22 | KL: 2.868e-03 | std: 0.5883 | rollout: 4.386s | update: 0.042s | total: 4.428s | samples/s: 3018
+Iteration 0015 | train reward: 211.85 | best: 217.22 | KL: 2.039e-03 | std: 0.5911 | rollout: 3.915s | update: 0.078s | total: 3.993s | samples/s: 3305
+Iteration 0016 | train reward: 210.63 | best: 217.22 | KL: 2.022e-03 | std: 0.5903 | rollout: 3.493s | update: 0.151s | total: 3.644s | samples/s: 3526
+Iteration 0017 | train reward: 216.10 | best: 217.22 | KL: 1.284e-03 | std: 0.5879 | rollout: 3.758s | update: 0.031s | total: 3.789s | samples/s: 3483
+Iteration 0018 | train reward: 219.78 | best: 219.78 | KL: 2.273e-03 | std: 0.5890 | rollout: 3.720s | update: 0.025s | total: 3.745s | samples/s: 3516
+Iteration 0019 | train reward: 218.49 | best: 219.78 | KL: 1.634e-03 | std: 0.5868 | rollout: 3.613s | update: 0.053s | total: 3.666s | samples/s: 3579
+Iteration 0020 | train reward: 216.18 | best: 219.78 | KL: 1.758e-03 | std: 0.5845 | rollout: 3.503s | update: 0.135s | total: 3.639s | samples/s: 3566
+Iteration 0021 | train reward: 215.32 | best: 219.78 | KL: 1.541e-03 | std: 0.5826 | rollout: 3.764s | update: 0.100s | total: 3.864s | samples/s: 3339
+Iteration 0022 | train reward: 213.52 | best: 219.78 | KL: 2.054e-03 | std: 0.5851 | rollout: 4.546s | update: 0.074s | total: 4.620s | samples/s: 2815
+Iteration 0023 | train reward: 218.72 | best: 219.78 | KL: 3.669e-03 | std: 0.5838 | rollout: 4.407s | update: 0.043s | total: 4.450s | samples/s: 3061
+Iteration 0024 | train reward: 227.94 | best: 227.94 | KL: 1.343e-03 | std: 0.5838 | rollout: 4.094s | update: 0.038s | total: 4.133s | samples/s: 3472
+Iteration 0025 | train reward: 223.63 | best: 227.94 | KL: 1.328e-03 | std: 0.5857 | rollout: 4.444s | update: 0.107s | total: 4.551s | samples/s: 3133
+Iteration 0026 | train reward: 221.91 | best: 227.94 | KL: 1.682e-03 | std: 0.5872 | rollout: 4.491s | update: 0.095s | total: 4.586s | samples/s: 3089
+Iteration 0027 | train reward: 223.93 | best: 227.94 | KL: 1.739e-03 | std: 0.5865 | rollout: 3.898s | update: 0.033s | total: 3.931s | samples/s: 3558
+Iteration 0028 | train reward: 223.99 | best: 227.94 | KL: 1.759e-03 | std: 0.5891 | rollout: 4.434s | update: 0.047s | total: 4.481s | samples/s: 3107
+Iteration 0029 | train reward: 229.25 | best: 229.25 | KL: 2.226e-03 | std: 0.5861 | rollout: 4.299s | update: 0.072s | total: 4.371s | samples/s: 3290
+Iteration 0030 | train reward: 228.17 | best: 229.25 | KL: 1.298e-03 | std: 0.5851 | rollout: 3.952s | update: 0.032s | total: 3.984s | samples/s: 3559
+Iteration 0031 | train reward: 229.56 | best: 229.56 | KL: 1.499e-03 | std: 0.5834 | rollout: 4.110s | update: 0.044s | total: 4.153s | samples/s: 3455
+Iteration 0032 | train reward: 228.63 | best: 229.56 | KL: 1.081e-03 | std: 0.5844 | rollout: 4.229s | update: 0.037s | total: 4.265s | samples/s: 3343
+Iteration 0033 | train reward: 234.22 | best: 234.22 | KL: 2.508e-03 | std: 0.5848 | rollout: 4.634s | update: 0.096s | total: 4.730s | samples/s: 3132
+Iteration 0034 | train reward: 239.55 | best: 239.55 | KL: 3.560e-03 | std: 0.5822 | rollout: 5.615s | update: 0.157s | total: 5.773s | samples/s: 2666
+Iteration 0035 | train reward: 246.50 | best: 246.50 | KL: 2.324e-03 | std: 0.5816 | rollout: 6.036s | update: 0.065s | total: 6.101s | samples/s: 2687
+Iteration 0036 | train reward: 250.53 | best: 250.53 | KL: 2.695e-03 | std: 0.5787 | rollout: 5.774s | update: 0.062s | total: 5.835s | samples/s: 2906
+Iteration 0037 | train reward: 261.18 | best: 261.18 | KL: 3.664e-03 | std: 0.5762 | rollout: 6.388s | update: 0.111s | total: 6.500s | samples/s: 2713
+Iteration 0038 | train reward: 266.57 | best: 266.57 | KL: 4.215e-03 | std: 0.5783 | rollout: 8.574s | update: 0.172s | total: 8.746s | samples/s: 2145
+Iteration 0039 | train reward: 265.90 | best: 266.57 | KL: 4.346e-03 | std: 0.5774 | rollout: 7.009s | update: 0.342s | total: 7.351s | samples/s: 2515
+Iteration 0040 | train reward: 283.69 | best: 283.69 | KL: 4.608e-03 | std: 0.5724 | rollout: 7.807s | update: 0.251s | total: 8.058s | samples/s: 2401
+Iteration 0041 | train reward: 304.15 | best: 304.15 | KL: 4.005e-03 | std: 0.5696 | rollout: 7.784s | update: 0.055s | total: 7.839s | samples/s: 2712
+Iteration 0042 | train reward: 337.40 | best: 337.40 | KL: 5.495e-03 | std: 0.5660 | rollout: 8.768s | update: 0.077s | total: 8.845s | samples/s: 2650
+Iteration 0043 | train reward: 372.24 | best: 372.24 | KL: 1.066e-02 | std: 0.5600 | rollout: 8.479s | update: 0.084s | total: 8.563s | samples/s: 3102
+Iteration 0044 | train reward: 440.05 | best: 440.05 | KL: 1.319e-02 | std: 0.5537 | rollout: 9.960s | update: 0.093s | total: 10.053s | samples/s: 3234
+Iteration 0045 | train reward: 422.84 | best: 440.05 | KL: 1.058e-02 | std: 0.5517 | rollout: 8.851s | update: 0.073s | total: 8.925s | samples/s: 3313
+Iteration 0046 | train reward: 448.89 | best: 448.89 | KL: 7.486e-03 | std: 0.5427 | rollout: 10.811s | update: 0.357s | total: 11.168s | samples/s: 2945
+Iteration 0047 | train reward: 451.19 | best: 451.19 | KL: 8.718e-03 | std: 0.5400 | rollout: 9.808s | update: 0.180s | total: 9.987s | samples/s: 3213
+Iteration 0048 | train reward: 450.17 | best: 451.19 | KL: 1.010e-02 | std: 0.5403 | rollout: 11.107s | update: 0.128s | total: 11.235s | samples/s: 2910
+Iteration 0049 | train reward: 460.12 | best: 460.12 | KL: 1.014e-02 | std: 0.5431 | rollout: 10.066s | update: 0.246s | total: 10.312s | samples/s: 3142
+Iteration 0050 | train reward: 426.21 | best: 460.12 | KL: 1.065e-02 | std: 0.5446 | rollout: 9.109s | update: 0.543s | total: 9.652s | samples/s: 3001
+Iteration 0051 | train reward: 434.94 | best: 460.12 | KL: 1.065e-02 | std: 0.5430 | rollout: 9.295s | update: 0.279s | total: 9.574s | samples/s: 3072
+Iteration 0052 | train reward: 422.92 | best: 460.12 | KL: 5.947e-03 | std: 0.5464 | rollout: 8.985s | update: 0.411s | total: 9.396s | samples/s: 3056
+Iteration 0053 | train reward: 459.70 | best: 460.12 | KL: 8.338e-03 | std: 0.5473 | rollout: 10.425s | update: 0.106s | total: 10.531s | samples/s: 3015
+Iteration 0054 | train reward: 452.39 | best: 460.12 | KL: 6.926e-03 | std: 0.5483 | rollout: 9.918s | update: 0.121s | total: 10.039s | samples/s: 3058
+Iteration 0055 | train reward: 451.31 | best: 460.12 | KL: 7.901e-03 | std: 0.5431 | rollout: 8.811s | update: 0.065s | total: 8.876s | samples/s: 3390
+Iteration 0056 | train reward: 430.35 | best: 460.12 | KL: 1.024e-02 | std: 0.5429 | rollout: 8.369s | update: 0.081s | total: 8.450s | samples/s: 3350
+Iteration 0057 | train reward: 437.13 | best: 460.12 | KL: 4.567e-03 | std: 0.5404 | rollout: 8.597s | update: 0.135s | total: 8.732s | samples/s: 3183
+Iteration 0058 | train reward: 447.50 | best: 460.12 | KL: 9.074e-03 | std: 0.5379 | rollout: 9.207s | update: 0.367s | total: 9.573s | samples/s: 2996
+Iteration 0059 | train reward: 470.83 | best: 470.83 | KL: 8.525e-03 | std: 0.5366 | rollout: 8.760s | update: 0.125s | total: 8.884s | samples/s: 3366
+Iteration 0060 | train reward: 459.76 | best: 470.83 | KL: 4.756e-03 | std: 0.5434 | rollout: 9.118s | update: 0.267s | total: 9.385s | samples/s: 3105
+Iteration 0061 | train reward: 478.88 | best: 478.88 | KL: 8.361e-03 | std: 0.5360 | rollout: 10.002s | update: 0.336s | total: 10.338s | samples/s: 2928
+Iteration 0062 | train reward: 481.08 | best: 481.08 | KL: 9.425e-03 | std: 0.5365 | rollout: 10.092s | update: 0.115s | total: 10.207s | samples/s: 2964
+Iteration 0063 | train reward: 486.88 | best: 486.88 | KL: 6.370e-03 | std: 0.5329 | rollout: 11.639s | update: 0.789s | total: 12.429s | samples/s: 2418
+Iteration 0064 | train reward: 514.58 | best: 514.58 | KL: 7.069e-03 | std: 0.5338 | rollout: 12.161s | update: 0.356s | total: 12.517s | samples/s: 2530
+Iteration 0065 | train reward: 556.13 | best: 556.13 | KL: 6.784e-03 | std: 0.5296 | rollout: 9.712s | update: 0.328s | total: 10.040s | samples/s: 3396
+Iteration 0066 | train reward: 587.50 | best: 587.50 | KL: 9.155e-03 | std: 0.5271 | rollout: 11.177s | update: 0.343s | total: 11.520s | samples/s: 3102
+Iteration 0067 | train reward: 632.50 | best: 632.50 | KL: 8.019e-03 | std: 0.5250 | rollout: 10.632s | update: 0.199s | total: 10.831s | samples/s: 3554
+Iteration 0068 | train reward: 655.30 | best: 655.30 | KL: 1.072e-02 | std: 0.5247 | rollout: 10.761s | update: 0.270s | total: 11.031s | samples/s: 3578
+Iteration 0069 | train reward: 664.27 | best: 664.27 | KL: 6.727e-03 | std: 0.5194 | rollout: 10.245s | update: 0.281s | total: 10.526s | samples/s: 3678
+Iteration 0070 | train reward: 701.39 | best: 701.39 | KL: 8.995e-03 | std: 0.5272 | rollout: 10.344s | update: 0.116s | total: 10.460s | samples/s: 4039
+Iteration 0071 | train reward: 736.60 | best: 736.60 | KL: 1.062e-02 | std: 0.5225 | rollout: 10.471s | update: 0.096s | total: 10.567s | samples/s: 4250
+Iteration 0072 | train reward: 745.42 | best: 745.42 | KL: 9.773e-03 | std: 0.5146 | rollout: 10.680s | update: 0.468s | total: 11.148s | samples/s: 3966
+Iteration 0073 | train reward: 739.39 | best: 745.42 | KL: 1.149e-02 | std: 0.5091 | rollout: 11.288s | update: 0.326s | total: 11.614s | samples/s: 3613
+Iteration 0074 | train reward: 746.69 | best: 746.69 | KL: 9.646e-03 | std: 0.5091 | rollout: 10.338s | update: 0.152s | total: 10.490s | samples/s: 3978
+Iteration 0075 | train reward: 790.26 | best: 790.26 | KL: 7.099e-03 | std: 0.5013 | rollout: 11.021s | update: 0.362s | total: 11.383s | samples/s: 3894
+Iteration 0076 | train reward: 776.53 | best: 790.26 | KL: 9.673e-03 | std: 0.5055 | rollout: 10.522s | update: 0.101s | total: 10.623s | samples/s: 4021
+Iteration 0077 | train reward: 861.10 | best: 861.10 | KL: 1.910e-02 | std: 0.5000 | rollout: 12.461s | update: 0.517s | total: 12.978s | samples/s: 3739
+Iteration 0078 | train reward: 875.35 | best: 875.35 | KL: 1.674e-02 | std: 0.5038 | rollout: 8.509s | update: 0.360s | total: 8.869s | samples/s: 5230
+Iteration 0079 | train reward: 907.81 | best: 907.81 | KL: 9.266e-03 | std: 0.5043 | rollout: 8.579s | update: 0.137s | total: 8.716s | samples/s: 5408
+Iteration 0080 | train reward: 929.35 | best: 929.35 | KL: 4.277e-02 | std: 0.5104 | rollout: 8.094s | update: 0.101s | total: 8.195s | samples/s: 5988
+Iteration 0081 | train reward: 923.32 | best: 929.35 | KL: 1.289e-02 | std: 0.5078 | rollout: 8.354s | update: 0.115s | total: 8.469s | samples/s: 6893
+Iteration 0082 | train reward: 978.46 | best: 978.46 | KL: 1.918e-02 | std: 0.5078 | rollout: 8.620s | update: 0.108s | total: 8.729s | samples/s: 6254
+Iteration 0083 | train reward: 1003.55 | best: 1003.55 | KL: 2.631e-02 | std: 0.5094 | rollout: 8.559s | update: 0.139s | total: 8.698s | samples/s: 6206
+Iteration 0084 | train reward: 970.48 | best: 1003.55 | KL: 2.741e-02 | std: 0.5145 | rollout: 8.285s | update: 0.117s | total: 8.402s | samples/s: 5995
+Iteration 0085 | train reward: 923.10 | best: 1003.55 | KL: 2.462e-02 | std: 0.5092 | rollout: 8.396s | update: 0.107s | total: 8.503s | samples/s: 5490
+Iteration 0086 | train reward: 1072.00 | best: 1072.00 | KL: 2.926e-02 | std: 0.5080 | rollout: 9.731s | update: 0.115s | total: 9.846s | samples/s: 5517
+Iteration 0087 | train reward: 1101.52 | best: 1101.52 | KL: 1.267e-02 | std: 0.5054 | rollout: 6.424s | update: 0.108s | total: 6.532s | samples/s: 8701
+Iteration 0088 | train reward: 1123.27 | best: 1123.27 | KL: 1.158e-02 | std: 0.5036 | rollout: 6.119s | update: 0.119s | total: 6.238s | samples/s: 9108
+Iteration 0089 | train reward: 1128.25 | best: 1128.25 | KL: 1.363e-02 | std: 0.5042 | rollout: 6.209s | update: 0.104s | total: 6.313s | samples/s: 8880
+Iteration 0090 | train reward: 1148.52 | best: 1148.52 | KL: 1.122e-02 | std: 0.5009 | rollout: 6.339s | update: 0.126s | total: 6.465s | samples/s: 8827
+Iteration 0091 | train reward: 1143.24 | best: 1148.52 | KL: 2.159e-02 | std: 0.4974 | rollout: 6.122s | update: 0.131s | total: 6.254s | samples/s: 9016
+Iteration 0092 | train reward: 1179.00 | best: 1179.00 | KL: 1.494e-02 | std: 0.4922 | rollout: 6.620s | update: 0.122s | total: 6.742s | samples/s: 8737
+Iteration 0093 | train reward: 1199.79 | best: 1199.79 | KL: 1.179e-02 | std: 0.4895 | rollout: 6.764s | update: 0.124s | total: 6.888s | samples/s: 9047
+Iteration 0094 | train reward: 1159.78 | best: 1199.79 | KL: 1.085e-02 | std: 0.4872 | rollout: 6.445s | update: 0.176s | total: 6.621s | samples/s: 8842
+Iteration 0095 | train reward: 1096.39 | best: 1199.79 | KL: 1.422e-02 | std: 0.4794 | rollout: 6.733s | update: 0.173s | total: 6.907s | samples/s: 7650
+Iteration 0096 | train reward: 1135.99 | best: 1199.79 | KL: 1.146e-02 | std: 0.4809 | rollout: 6.518s | update: 0.105s | total: 6.623s | samples/s: 8357
+Iteration 0097 | train reward: 1156.13 | best: 1199.79 | KL: 1.342e-02 | std: 0.4739 | rollout: 6.496s | update: 0.140s | total: 6.635s | samples/s: 8561
+Iteration 0098 | train reward: 1179.11 | best: 1199.79 | KL: 1.309e-02 | std: 0.4799 | rollout: 6.362s | update: 0.138s | total: 6.500s | samples/s: 8866
+Iteration 0099 | train reward: 1098.87 | best: 1199.79 | KL: 1.207e-02 | std: 0.4739 | rollout: 6.475s | update: 0.190s | total: 6.665s | samples/s: 7732
+Iteration 0100 | train reward: 1160.74 | best: 1199.79 | KL: 1.264e-02 | std: 0.4748 | rollout: 6.576s | update: 0.169s | total: 6.745s | samples/s: 8183
+Iteration 0101 | train reward: 1180.31 | best: 1199.79 | KL: 1.353e-02 | std: 0.4782 | rollout: 6.608s | update: 0.106s | total: 6.713s | samples/s: 8352
+Iteration 0102 | train reward: 1192.44 | best: 1199.79 | KL: 1.193e-02 | std: 0.4703 | rollout: 6.489s | update: 0.106s | total: 6.595s | samples/s: 8520
+Iteration 0103 | train reward: 1221.45 | best: 1221.45 | KL: 1.679e-02 | std: 0.4653 | rollout: 6.160s | update: 0.135s | total: 6.295s | samples/s: 8990
+Iteration 0104 | train reward: 1189.44 | best: 1221.45 | KL: 1.519e-02 | std: 0.4705 | rollout: 6.310s | update: 0.149s | total: 6.459s | samples/s: 8488
+Iteration 0105 | train reward: 1205.91 | best: 1221.45 | KL: 1.112e-02 | std: 0.4739 | rollout: 6.465s | update: 0.196s | total: 6.661s | samples/s: 8310
+Iteration 0106 | train reward: 1259.45 | best: 1259.45 | KL: 1.322e-02 | std: 0.4742 | rollout: 6.222s | update: 0.169s | total: 6.390s | samples/s: 9110
+Iteration 0107 | train reward: 1272.31 | best: 1272.31 | KL: 1.220e-02 | std: 0.4750 | rollout: 6.590s | update: 0.121s | total: 6.712s | samples/s: 8688
+Iteration 0108 | train reward: 1251.24 | best: 1272.31 | KL: 1.190e-02 | std: 0.4729 | rollout: 6.527s | update: 0.142s | total: 6.669s | samples/s: 8514
+Iteration 0109 | train reward: 1279.40 | best: 1279.40 | KL: 1.305e-02 | std: 0.4774 | rollout: 6.507s | update: 0.155s | total: 6.662s | samples/s: 8719
+Iteration 0110 | train reward: 1299.47 | best: 1299.47 | KL: 2.119e-02 | std: 0.4724 | rollout: 6.744s | update: 0.130s | total: 6.875s | samples/s: 8520
+Iteration 0111 | train reward: 1243.40 | best: 1299.47 | KL: 1.217e-02 | std: 0.4696 | rollout: 6.895s | update: 0.106s | total: 7.000s | samples/s: 7744
+Iteration 0112 | train reward: 1307.92 | best: 1307.92 | KL: 1.434e-02 | std: 0.4625 | rollout: 6.236s | update: 0.131s | total: 6.367s | samples/s: 8941
+Iteration 0113 | train reward: 1333.33 | best: 1333.33 | KL: 2.097e-02 | std: 0.4626 | rollout: 6.479s | update: 0.127s | total: 6.606s | samples/s: 9038
+Iteration 0114 | train reward: 1286.39 | best: 1333.33 | KL: 1.408e-02 | std: 0.4633 | rollout: 6.333s | update: 0.105s | total: 6.438s | samples/s: 8714
+Iteration 0115 | train reward: 1331.65 | best: 1333.33 | KL: 1.038e-02 | std: 0.4618 | rollout: 6.048s | update: 0.115s | total: 6.163s | samples/s: 9480
+Iteration 0116 | train reward: 1325.71 | best: 1333.33 | KL: 1.761e-02 | std: 0.4611 | rollout: 6.528s | update: 0.136s | total: 6.664s | samples/s: 8688
+Iteration 0117 | train reward: 1321.78 | best: 1333.33 | KL: 1.345e-02 | std: 0.4581 | rollout: 6.644s | update: 0.127s | total: 6.771s | samples/s: 8579
+Iteration 0118 | train reward: 1299.77 | best: 1333.33 | KL: 9.912e-03 | std: 0.4505 | rollout: 6.296s | update: 0.125s | total: 6.421s | samples/s: 8756
+Iteration 0119 | train reward: 1314.86 | best: 1333.33 | KL: 1.727e-02 | std: 0.4409 | rollout: 6.533s | update: 0.219s | total: 6.752s | samples/s: 8561
+Iteration 0120 | train reward: 1375.99 | best: 1375.99 | KL: 1.460e-02 | std: 0.4375 | rollout: 6.481s | update: 0.139s | total: 6.619s | samples/s: 9265
+Iteration 0121 | train reward: 1354.08 | best: 1375.99 | KL: 1.815e-02 | std: 0.4392 | rollout: 6.356s | update: 0.188s | total: 6.544s | samples/s: 9138
+Iteration 0122 | train reward: 1344.84 | best: 1375.99 | KL: 1.997e-02 | std: 0.4374 | rollout: 6.618s | update: 0.127s | total: 6.746s | samples/s: 8794
+Iteration 0123 | train reward: 1372.75 | best: 1375.99 | KL: 1.535e-02 | std: 0.4306 | rollout: 6.431s | update: 0.141s | total: 6.572s | samples/s: 9271
+Iteration 0124 | train reward: 1338.69 | best: 1375.99 | KL: 1.357e-02 | std: 0.4325 | rollout: 6.458s | update: 0.204s | total: 6.662s | samples/s: 8846
+Iteration 0125 | train reward: 1358.65 | best: 1375.99 | KL: 1.555e-02 | std: 0.4348 | rollout: 6.359s | update: 0.118s | total: 6.477s | samples/s: 9253
+Iteration 0126 | train reward: 1361.74 | best: 1375.99 | KL: 3.037e-02 | std: 0.4399 | rollout: 6.347s | update: 0.129s | total: 6.475s | samples/s: 9118
+Iteration 0127 | train reward: 1344.09 | best: 1375.99 | KL: 1.843e-02 | std: 0.4373 | rollout: 6.671s | update: 0.121s | total: 6.792s | samples/s: 8663
+Iteration 0128 | train reward: 1315.05 | best: 1375.99 | KL: 1.884e-02 | std: 0.4326 | rollout: 6.494s | update: 0.146s | total: 6.641s | samples/s: 8813
+Iteration 0129 | train reward: 1308.99 | best: 1375.99 | KL: 1.611e-02 | std: 0.4312 | rollout: 6.739s | update: 0.109s | total: 6.849s | samples/s: 8574
+Iteration 0130 | train reward: 1365.34 | best: 1375.99 | KL: 1.339e-02 | std: 0.4339 | rollout: 6.278s | update: 0.168s | total: 6.446s | samples/s: 9376
+Iteration 0131 | train reward: 1387.05 | best: 1387.05 | KL: 1.506e-02 | std: 0.4322 | rollout: 6.254s | update: 0.143s | total: 6.397s | samples/s: 9659
+Iteration 0132 | train reward: 1343.36 | best: 1387.05 | KL: 1.316e-02 | std: 0.4260 | rollout: 6.232s | update: 0.222s | total: 6.454s | samples/s: 9392
+Iteration 0133 | train reward: 1363.51 | best: 1387.05 | KL: 1.395e-02 | std: 0.4282 | rollout: 6.401s | update: 0.172s | total: 6.573s | samples/s: 9413
+Iteration 0134 | train reward: 1340.03 | best: 1387.05 | KL: 1.437e-02 | std: 0.4271 | rollout: 6.537s | update: 0.171s | total: 6.707s | samples/s: 8987
+Iteration 0135 | train reward: 1393.94 | best: 1393.94 | KL: 2.918e-02 | std: 0.4245 | rollout: 6.566s | update: 0.166s | total: 6.732s | samples/s: 9313
+Iteration 0136 | train reward: 1379.35 | best: 1393.94 | KL: 1.615e-02 | std: 0.4296 | rollout: 6.760s | update: 0.122s | total: 6.882s | samples/s: 8890
+Iteration 0137 | train reward: 1402.58 | best: 1402.58 | KL: 1.403e-02 | std: 0.4271 | rollout: 7.035s | update: 0.114s | total: 7.149s | samples/s: 8783
+Iteration 0138 | train reward: 1387.52 | best: 1402.58 | KL: 9.651e-03 | std: 0.4253 | rollout: 4.638s | update: 0.126s | total: 4.764s | samples/s: 13099
+Iteration 0139 | train reward: 1384.54 | best: 1402.58 | KL: 1.217e-02 | std: 0.4195 | rollout: 4.532s | update: 0.135s | total: 4.667s | samples/s: 13325
+Iteration 0140 | train reward: 1387.91 | best: 1402.58 | KL: 1.038e-02 | std: 0.4235 | rollout: 4.210s | update: 0.112s | total: 4.322s | samples/s: 14581
+Iteration 0141 | train reward: 1391.03 | best: 1402.58 | KL: 1.673e-02 | std: 0.4243 | rollout: 4.472s | update: 0.141s | total: 4.613s | samples/s: 13638
+Iteration 0142 | train reward: 1400.64 | best: 1402.58 | KL: 1.472e-02 | std: 0.4247 | rollout: 4.205s | update: 0.111s | total: 4.316s | samples/s: 14604
+Iteration 0143 | train reward: 1380.30 | best: 1402.58 | KL: 1.775e-02 | std: 0.4247 | rollout: 4.014s | update: 0.102s | total: 4.116s | samples/s: 15176
+Iteration 0144 | train reward: 1388.36 | best: 1402.58 | KL: 1.700e-02 | std: 0.4255 | rollout: 4.254s | update: 0.114s | total: 4.367s | samples/s: 14215
+Iteration 0145 | train reward: 1364.26 | best: 1402.58 | KL: 1.323e-02 | std: 0.4305 | rollout: 4.272s | update: 0.110s | total: 4.382s | samples/s: 13739
+Iteration 0146 | train reward: 1329.95 | best: 1402.58 | KL: 1.206e-02 | std: 0.4299 | rollout: 4.517s | update: 0.168s | total: 4.685s | samples/s: 12524
+Iteration 0147 | train reward: 1341.73 | best: 1402.58 | KL: 1.182e-02 | std: 0.4262 | rollout: 4.357s | update: 0.117s | total: 4.473s | samples/s: 13233
+Iteration 0148 | train reward: 1391.77 | best: 1402.58 | KL: 2.885e-02 | std: 0.4245 | rollout: 4.547s | update: 0.134s | total: 4.682s | samples/s: 13157
+Iteration 0149 | train reward: 1302.73 | best: 1402.58 | KL: 2.225e-02 | std: 0.4273 | rollout: 4.593s | update: 0.108s | total: 4.702s | samples/s: 12144
+training time 1028.81s
