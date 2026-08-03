@@ -1,21 +1,25 @@
 {
-  "run_mode": "single",
+  "run_mode": "multiseed",
   "device": "cpu",
   "env_id": "Swimmer-v5",
   "seed": 23,
   "seeds": [
-    23
+    23,
+    24,
+    25,
+    26,
+    27
   ],
   "n_iterations": 2000,
-  "n_envs": 16,
-  "n_trajectories": 2,
-  "horizon": 1000,
+  "n_envs": 32,
+  "n_trajectories": 4,
+  "horizon": 500,
   "gamma": 0.999,
-  "returns_implementation": "recursive",
+  "returns_implementation": "vectorized",
   "lr": 3e-05,
   "lr_npg": 3e-05,
   "center_returns": false,
-  "normalize_returns": true,
+  "normalize_returns": false,
   "clip_actions": true,
   "hidden_sizes": [
     8,
@@ -27,8 +31,8 @@
   "save_plots": true,
   "save_checkpoints": true,
   "record_video": true,
-  "npg_damping": 0.1,
-  "entropy_coeff": 0.01,
+  "npg_damping": 0.001,
+  "entropy_coeff": 0.0,
   "use_npg": true,
   "output_dir": "runs/Swimmer/NPG/8x8",
   "scored_checkpoints": false

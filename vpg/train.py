@@ -1,9 +1,12 @@
 import contextlib
 import csv
 import json
+import multiprocessing as mp
 import os
 import sys
 import time
+import traceback
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import gymnasium as gym
 import numpy as np
@@ -92,18 +95,21 @@ class _Tee:
             stream.flush()
 
 
-#M: Mirrors everything printed inside the block into a log file.
+#M: Redirects everything printed inside the block into a log file.
 #A: Swaps sys.stdout/sys.stderr for a Tee, and always restores them on exit so a
 #   failure in one seed cannot leave later seeds writing to a closed file.
+#   tee=True also mirrors to the original console (sequential runs); tee=False writes
+#   only to the file, so parallel seed workers don't interleave on the shared console.
 @contextlib.contextmanager
-def _tee_stdout(path):
+def _tee_stdout(path, tee=True):
     if path is None:
         yield
         return
     with open(path, "w") as log_file:
         original_out, original_err = sys.stdout, sys.stderr
-        sys.stdout = _Tee(original_out, log_file)
-        sys.stderr = _Tee(original_err, log_file)
+        # _Tee flushes on every write, so a killed worker still leaves a complete log.
+        sys.stdout = _Tee(original_out, log_file) if tee else _Tee(log_file)
+        sys.stderr = _Tee(original_err, log_file) if tee else _Tee(log_file)
         try:
             yield
         finally:
@@ -507,44 +513,72 @@ def _record_best_seed_video(cfg, output_dir, all_training_rewards, seeds, final_
     )
 
 
-#M: Repeats training for several seeds and keeps every reward curve.
-#A: Calls single-seed training once per seed, saves separate and combined results,
-#   and optionally records the best seed.
-def run_multiseed(cfg: dict):
-    seeds = cfg.get("seeds", [cfg["seed"]])
-    output_dir = cfg.get("output_dir", "runs")
-    os.makedirs(output_dir, exist_ok=True)
+#M: Trains one seed and returns its reward curve.
+#A: Builds the per-seed config and subdir, mirrors that seed's output to its own
+#   train.log, and delegates to single-seed training. tee=True also echoes to the
+#   console (sequential runs); parallel workers pass tee=False so the shared console
+#   is not interleaved. Shared by the sequential and parallel seed paths so both
+#   produce byte-identical per-seed layouts.
+def _train_one_seed(cfg: dict, seed: int, output_dir: str, tee: bool = True):
+    seed_cfg = dict(cfg)
+    seed_cfg["seed"] = seed
+    seed_cfg["record_video"] = False   # never record during per-seed training
+    seed_cfg["save_plots"] = False     # CI plot is produced downstream in the notebook
 
-    want_video = cfg.get("record_video", False)
+    # Every seed gets its own subdir for policy/, checkpoints/, and rewards, so seeds
+    # never clobber each other and the best seed can be replayed after all finish.
+    # save_checkpoints is inherited from cfg (respects --save_checkpoints); only the
+    # filenames are forced deterministic so the best-seed video lookup always works.
+    seed_cfg["scored_checkpoints"] = False
+    seed_cfg["output_dir"] = os.path.join(output_dir, f"seed{seed}")
+    os.makedirs(seed_cfg["output_dir"], exist_ok=True)
 
+    # Mirror this seed's console output into its own directory, so one seed's
+    # progress is not interleaved with the others in a single combined log.
+    log_path = (
+        os.path.join(seed_cfg["output_dir"], "train.log")
+        if cfg.get("log_metrics", True)
+        else None
+    )
+    with _tee_stdout(log_path, tee=tee):
+        _, seed_rewards = run_single_training(seed_cfg)
+    return seed_rewards
+
+
+#M: Process-pool entry point that trains one seed in a worker process.
+#A: Returns (seed, rewards, error) so one seed's failure is reported to the parent
+#   instead of tearing down the whole pool. Output goes to the seed's log file only.
+def _seed_worker(packed):
+    cfg, seed, output_dir = packed
+    try:
+        rewards = _train_one_seed(cfg, seed, output_dir, tee=False)
+        return seed, rewards, None
+    except BaseException:  # report any failure back to the parent, don't crash the pool
+        return seed, None, traceback.format_exc()
+
+
+#M: Decides how many seeds to train concurrently.
+#A: 'auto' (or None) targets ~2x the core count in total env workers -- env workers are
+#   IPC-bound, not CPU-bound, so mild oversubscription is fine -- bounded by the seed
+#   count. An explicit integer is clamped to [1, n_seeds]. 1 (the default) means the
+#   original sequential path runs untouched.
+def _resolve_seed_workers(seed_workers, n_seeds: int, n_envs: int) -> int:
+    if seed_workers in (None, "auto"):
+        cores = os.cpu_count() or 1
+        target = max(1, (2 * cores) // max(1, n_envs))
+        return max(1, min(n_seeds, target))
+    n = int(seed_workers)
+    return min(max(n, 1), n_seeds)
+
+
+#M: Trains every seed one after another (the original, crash-resilient path).
+#A: After each seed, writes that seed's own file and rewrites the combined matrix, so
+#   an interrupted run still leaves usable outputs for the seeds that did finish.
+def _run_seeds_sequential(cfg: dict, seeds, output_dir: str):
     all_training_rewards = []
-
     for seed in seeds:
         print(f"\n========== Running seed {seed} ==========")
-
-        seed_cfg = dict(cfg)
-        seed_cfg["seed"] = seed
-        seed_cfg["record_video"] = False   # never record during per-seed training
-        seed_cfg["save_plots"] = False     # CI plot is produced downstream in the notebook
-
-        # Every seed gets its own subdir for policy/, checkpoints/, and rewards, so seeds
-        # never clobber each other and the best seed can be replayed after all finish.
-        # save_checkpoints is inherited from cfg (respects --save_checkpoints); only the
-        # filenames are forced deterministic so the best-seed video lookup always works.
-        seed_cfg["scored_checkpoints"] = False
-        seed_cfg["output_dir"] = os.path.join(output_dir, f"seed{seed}")
-        os.makedirs(seed_cfg["output_dir"], exist_ok=True)
-
-        # Mirror this seed's console output into its own directory, so one seed's
-        # progress is not interleaved with the others in a single combined log.
-        log_path = (
-            os.path.join(seed_cfg["output_dir"], "train.log")
-            if cfg.get("log_metrics", True)
-            else None
-        )
-        with _tee_stdout(log_path):
-            _, seed_rewards = run_single_training(seed_cfg)
-
+        seed_rewards = _train_one_seed(cfg, seed, output_dir, tee=True)
         all_training_rewards.append(seed_rewards)
 
         # One uniquely-named file per seed so each seed's curve is identifiable on disk.
@@ -567,14 +601,85 @@ def run_multiseed(cfg: dict):
                 np.asarray(all_training_rewards, dtype=np.float32),
                 completed,
             )
+    return all_training_rewards, list(seeds)
 
-    # Final combined matrix (all seeds, labeled) for the comparison notebook.
-    all_training_rewards = np.asarray(all_training_rewards, dtype=np.float32)
 
-    save_training_rewards(output_dir, all_training_rewards, seeds)
+#M: Trains up to n_workers seeds concurrently in separate processes.
+#A: Uses a 'spawn' pool so each worker is a fresh interpreter -- it re-imports vpg
+#   (thread pinning applies) before torch loads, avoiding fork-after-torch issues with
+#   the nested AsyncVectorEnv workers. Per-seed files are written as each seed finishes;
+#   results are reassembled into the original seed order (failed seeds dropped). The
+#   combined matrix is written once by the parent to avoid concurrent writers racing.
+def _run_seeds_parallel(cfg: dict, seeds, output_dir: str, n_workers: int):
+    print(f"\n========== Training {len(seeds)} seeds, {n_workers} at a time ==========")
+    print("Each seed's console output is redirected to its seed<N>/train.log")
 
-    if want_video:
-        _record_best_seed_video(cfg, output_dir, all_training_rewards, seeds)
+    rewards_by_seed = {}
+    ctx = mp.get_context("spawn")
+    with ProcessPoolExecutor(max_workers=n_workers, mp_context=ctx) as ex:
+        futures = {
+            ex.submit(_seed_worker, (cfg, seed, output_dir)): seed
+            for seed in seeds
+        }
+        for fut in as_completed(futures):
+            seed, seed_rewards, err = fut.result()
+            if err is not None:
+                print(f"[seed {seed}] FAILED -- other seeds continue:\n{err}")
+                continue
+            rewards_by_seed[seed] = seed_rewards
+            per_seed_path = save_training_rewards(
+                output_dir,
+                np.array([seed_rewards], dtype=np.float32),
+                [seed],
+                filename=f"training_rewards_seed{seed}.npz",
+            )
+            print(f"[seed {seed}] done ({len(rewards_by_seed)}/{len(seeds)}) -> {per_seed_path}")
+
+    # Reassemble in the requested seed order so downstream row i still maps to seeds[i];
+    # any seed that failed is simply absent from both returned lists.
+    completed_seeds = [s for s in seeds if s in rewards_by_seed]
+    ordered_rewards = [rewards_by_seed[s] for s in completed_seeds]
+    return ordered_rewards, completed_seeds
+
+
+#M: Repeats training for several seeds and keeps every reward curve.
+#A: Runs seeds sequentially (seed_workers <= 1) or concurrently, then saves the
+#   combined matrix and optionally records the best seed. Concurrency does not change
+#   any seed's result -- each seed is independent and self-seeded.
+def run_multiseed(cfg: dict):
+    seeds = cfg.get("seeds", [cfg["seed"]])
+    output_dir = cfg.get("output_dir", "runs")
+    os.makedirs(output_dir, exist_ok=True)
+
+    want_video = cfg.get("record_video", False)
+
+    n_workers = _resolve_seed_workers(
+        cfg.get("seed_workers", 1), len(seeds), cfg.get("n_envs", 1)
+    )
+
+    if n_workers <= 1:
+        all_training_rewards, completed_seeds = _run_seeds_sequential(cfg, seeds, output_dir)
+    else:
+        all_training_rewards, completed_seeds = _run_seeds_parallel(
+            cfg, seeds, output_dir, n_workers
+        )
+
+    if not all_training_rewards:
+        print("No seeds completed successfully; skipping combined outputs.")
+        return
+
+    # Final combined matrix (labeled) for the comparison notebook. Seeds that ran a
+    # different number of iterations cannot share one array; guard the stack (all seeds
+    # share cfg, so lengths match unless one was interrupted). Per-seed files above
+    # always hold the full curves regardless.
+    if len({len(r) for r in all_training_rewards}) == 1:
+        combined = np.asarray(all_training_rewards, dtype=np.float32)
+        save_training_rewards(output_dir, combined, completed_seeds)
+        if want_video:
+            _record_best_seed_video(cfg, output_dir, combined, completed_seeds)
+    else:
+        print("Seeds ran different iteration counts; combined matrix skipped "
+              "(per-seed files saved).")
 
 
 #M: Starts single-seed or multi-seed training from a saved configuration.

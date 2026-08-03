@@ -13,6 +13,21 @@ def str_to_bool(x):
     return bool(int(x))
 
 
+#M: Parses --seed_workers, which is either the literal 'auto' or a positive integer.
+#A: Keeps 'auto' as a string for train.py to resolve at runtime (it needs the core
+#   count); everything else must be an int >= 1.
+def _seed_workers_arg(value):
+    if isinstance(value, str) and value.lower() == "auto":
+        return "auto"
+    try:
+        n = int(value)
+    except (TypeError, ValueError):
+        raise argparse.ArgumentTypeError("seed_workers must be a positive integer or 'auto'")
+    if n < 1:
+        raise argparse.ArgumentTypeError("seed_workers must be >= 1")
+    return n
+
+
 #M: Converts text such as "32,32" into a list of hidden-layer sizes.
 #A: Splits at commas, converts each part to an integer, and rejects invalid sizes.
 def parse_hidden_sizes(value: str):
@@ -32,6 +47,7 @@ def build_config(args):
         "env_id": args.env_id,
         "seed": args.seed,
         "seeds": args.seeds,
+        "seed_workers": args.seed_workers,
 
         "n_iterations": args.n_iterations,
         "n_envs": args.n_envs,
@@ -104,10 +120,16 @@ def _apply_file_config(parser, config_path="config.json"):
 #M: Prints the main environment, batch, and algorithm settings before training.
 #A: Reads the resolved configuration and shows the values most useful for checking a run.
 def _print_algo_header(cfg):
+    batch = cfg["n_envs"] * cfg["n_trajectories"]
     print(f"Environment  : {cfg['env_id']}")
     print(f"Mode         : {cfg['run_mode']}")
     print(f"Horizon      : {cfg['horizon']}")
-    print(f"Batch        : {cfg['n_envs']} envs × {cfg['n_trajectories']} traj")
+    print(f"Batch        : {batch} episodes/update ({cfg['n_envs']} envs × {cfg['n_trajectories']} traj)")
+    if cfg["run_mode"] == "multiseed":
+        sw = cfg.get("seed_workers", 1)
+        n_seeds = len(cfg.get("seeds", [cfg["seed"]]))
+        mode = "sequential" if sw == 1 else f"{sw} seeds concurrently"
+        print(f"Seeds        : {n_seeds} ({mode})")
     if cfg.get("use_npg", False):
         print(f"Algorithm    : NPG  (SGD, lr={cfg['lr']}, damping={cfg['npg_damping']})")
     else:
@@ -166,6 +188,19 @@ def main():
         default=[23, 24, 25, 26, 27],
         help="List of seeds for multiseed runs.",
     )
+    parser.add_argument(
+        "--seed_workers",
+        type=_seed_workers_arg,
+        default=1,
+        help=(
+            "Multiseed only. How many seeds to train concurrently, each in its own "
+            "process. 1 (default) runs them sequentially, exactly as before. An integer "
+            "N runs N at a time; 'auto' picks a safe count from the core count and "
+            "--n_envs. Seeds are independent, so concurrency does not change any result. "
+            "Note: each seed itself spawns --n_envs env workers, so total processes ≈ "
+            "seed_workers × n_envs — keep that near the core count to avoid thrashing."
+        ),
+    )
 
     parser.add_argument(
         "--n_iterations",
@@ -183,7 +218,9 @@ def main():
         "--n_trajectories",
         type=int,
         default=1,
-        help="Episodes collected per environment per iteration.",
+        help="Episodes collected per environment per iteration. Total batch size = "
+             "n_envs * n_trajectories (the split barely affects speed; pick whichever "
+             "factors give the batch you want).",
     )
     parser.add_argument(
         "--horizon",

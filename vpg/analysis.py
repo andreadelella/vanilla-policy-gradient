@@ -4,6 +4,7 @@ Post-hoc plotting of saved reward files. See plotting.py for live training-time 
 """
 
 import argparse
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
@@ -26,25 +27,86 @@ class RewardData:
     sources: tuple[Path, ...]
 
 
-def resolve_reward_path(path: str | Path) -> Path:
-    """Resolve an NPY/NPZ input or find the aggregate rewards in a run directory."""
+_AGGREGATE_NAMES = ("training_rewards.npz", "training_rewards.npy")
+
+
+def _seed_from_name(path: Path) -> int | None:
+    """Extract the seed id from a per-seed reward path, or None if absent."""
+    match = re.search(r"seed(\d+)", path.name) or re.search(
+        r"seed(\d+)", path.parent.name
+    )
+    return int(match.group(1)) if match else None
+
+
+def discover_seed_files(directory: Path) -> list[Path]:
+    """Return the per-seed reward files in a run directory, ordered by seed.
+
+    train.py's multiseed path writes each seed's curve twice, and both copies
+    outlive an interrupted or resumed run:
+
+        <run>/training_rewards_seed<N>.npz   once seed N finishes
+        <run>/seed<N>/training_rewards.npz   by seed N itself, also mid-run
+
+    Either is preferred over <run>/training_rewards.npz, which covers only the
+    seeds of the most recent invocation: resuming a run with a different --seeds
+    list overwrites it, silently dropping the earlier seeds from every plot.
+
+    The top-level file wins when both exist, because it is written only after a
+    seed completes. The nested copy is also written periodically during training,
+    so for an interrupted seed it is the truncated curve -- still worth loading,
+    but only when no completed copy exists.
+    """
+    by_seed: dict[int, Path] = {}
+    # Nested copies first so the completed top-level files overwrite them.
+    for pattern in ("seed*/training_rewards.npz", "training_rewards_seed*.npz"):
+        for candidate in sorted(directory.glob(pattern)):
+            seed = _seed_from_name(candidate)
+            if seed is not None:
+                by_seed[seed] = candidate
+    return [by_seed[seed] for seed in sorted(by_seed)]
+
+
+def resolve_reward_inputs(path: str | Path) -> tuple[Path, ...]:
+    """Expand one input into the reward files it refers to.
+
+    A file resolves to itself. A run directory resolves to every per-seed file it
+    holds, falling back to the aggregate matrix when no per-seed file exists.
+    """
     path = Path(path).expanduser().resolve()
     if path.is_dir():
-        candidates = (
-            path / "training_rewards.npz",
-            path / "training_rewards.npy",
-        )
-        for candidate in candidates:
+        seed_files = discover_seed_files(path)
+        if seed_files:
+            return tuple(seed_files)
+        for name in _AGGREGATE_NAMES:
+            candidate = path / name
             if candidate.is_file():
-                return candidate
+                return (candidate,)
         raise FileNotFoundError(
-            f"No training_rewards.npz or training_rewards.npy found in {path}"
+            f"No per-seed or aggregate training_rewards file found in {path}"
         )
     if not path.is_file():
         raise FileNotFoundError(f"Reward input does not exist: {path}")
     if path.suffix.lower() not in {".npy", ".npz"}:
         raise ValueError(f"Unsupported reward file {path}; use .npy or .npz")
-    return path
+    return (path,)
+
+
+def resolve_reward_path(path: str | Path) -> Path:
+    """Resolve a single NPY/NPZ input or a run directory's aggregate rewards.
+
+    Kept for callers that need exactly one path; prefer resolve_reward_inputs,
+    which picks up every seed of a multiseed run.
+    """
+    path = Path(path).expanduser().resolve()
+    if path.is_dir():
+        for name in _AGGREGATE_NAMES:
+            candidate = path / name
+            if candidate.is_file():
+                return candidate
+        raise FileNotFoundError(
+            f"No training_rewards.npz or training_rewards.npy found in {path}"
+        )
+    return resolve_reward_inputs(path)[0]
 
 
 def load_reward_file(path: str | Path) -> RewardData:
@@ -91,19 +153,52 @@ def load_reward_file(path: str | Path) -> RewardData:
     return RewardData(curves, labels, seeds, (path,))
 
 
-def load_reward_files(paths: Sequence[str | Path]) -> RewardData:
-    """Combine selected reward files, retaining every curve in input order."""
+def load_reward_files(
+    paths: Sequence[str | Path], truncate: bool = False
+) -> RewardData:
+    """Combine selected reward files, retaining every curve in input order.
+
+    Directories expand to all of their per-seed files, so passing a multiseed run
+    directory loads every seed rather than whatever the aggregate matrix happens
+    to hold. Duplicate inputs are loaded once.
+
+    truncate=True clips every curve to the shortest length instead of raising, so
+    a run whose seeds stopped at different iterations can still be plotted.
+    """
     if not paths:
         raise ValueError("Select at least one reward file or run directory")
 
-    datasets = [load_reward_file(path) for path in paths]
+    resolved: list[Path] = []
+    seen: set[Path] = set()
+    for path in paths:
+        for candidate in resolve_reward_inputs(path):
+            if candidate not in seen:
+                seen.add(candidate)
+                resolved.append(candidate)
+
+    datasets = [load_reward_file(path) for path in resolved]
     iteration_counts = {dataset.curves.shape[1] for dataset in datasets}
     if len(iteration_counts) != 1:
         details = ", ".join(
-            f"{dataset.sources[0]}={dataset.curves.shape[1]}"
+            f"{dataset.sources[0].name}={dataset.curves.shape[1]}"
             for dataset in datasets
         )
-        raise ValueError(f"All selected curves must have equal length: {details}")
+        if not truncate:
+            raise ValueError(
+                f"All selected curves must have equal length: {details}. "
+                f"Pass truncate=True to clip them to the shortest."
+            )
+        shortest = min(iteration_counts)
+        print(f"truncating to {shortest} iterations ({details})")
+        datasets = [
+            RewardData(
+                dataset.curves[:, :shortest],
+                dataset.labels,
+                dataset.seeds,
+                dataset.sources,
+            )
+            for dataset in datasets
+        ]
 
     curves = np.concatenate([dataset.curves for dataset in datasets], axis=0)
     labels = [
@@ -188,8 +283,13 @@ def plot_comparison(
     ylabel: str = "Average training return",
     mode: str = "mean",
     final_window: int = 100,
+    truncate: bool = False,
 ) -> Path:
-    """Compare labeled runs using their mean/CI or best selected curve."""
+    """Compare labeled runs using their mean/CI or best selected curve.
+
+    truncate=True clips every group to the shortest length instead of raising,
+    for comparing runs that stopped at different iteration counts.
+    """
     if not groups:
         raise ValueError("Select at least one run to compare")
 
@@ -200,7 +300,19 @@ def plot_comparison(
         details = ", ".join(
             f"{label}={data.curves.shape[1]}" for label, data in groups.items()
         )
-        raise ValueError(f"Compared runs must have equal length: {details}")
+        if not truncate:
+            raise ValueError(
+                f"Compared runs must have equal length: {details}. "
+                f"Pass truncate=True to clip them to the shortest."
+            )
+        shortest = min(lengths)
+        print(f"truncating every run to {shortest} iterations ({details})")
+        groups = {
+            label: RewardData(
+                data.curves[:, :shortest], data.labels, data.seeds, data.sources
+            )
+            for label, data in groups.items()
+        }
     if final_window <= 0:
         raise ValueError("final_window must be greater than zero")
 
@@ -242,6 +354,14 @@ def _add_plot_arguments(
     parser.add_argument("--xlabel", default="Iteration", help="X-axis title.")
     parser.add_argument(
         "--ylabel", default="Average training return", help="Y-axis title."
+    )
+    parser.add_argument(
+        "--truncate",
+        action="store_true",
+        help=(
+            "Clip every curve to the shortest instead of failing when the "
+            "selection mixes different iteration counts."
+        ),
     )
 
 
@@ -299,7 +419,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "single":
         output = plot_single(
-            load_reward_files(args.inputs),
+            load_reward_files(args.inputs, truncate=args.truncate),
             args.output,
             args.title,
             args.xlabel,
@@ -307,7 +427,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
     elif args.command == "ci":
         output = plot_ci(
-            load_reward_files(args.inputs),
+            load_reward_files(args.inputs, truncate=args.truncate),
             args.output,
             args.title,
             args.xlabel,
@@ -322,7 +442,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             label, *inputs = run
             if label in groups:
                 raise ValueError(f"Duplicate comparison label: {label}")
-            groups[label] = load_reward_files(inputs)
+            groups[label] = load_reward_files(inputs, truncate=args.truncate)
         output = plot_comparison(
             groups,
             args.output,
@@ -331,6 +451,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.ylabel,
             args.mode,
             args.final_window,
+            truncate=args.truncate,
         )
 
     print(f"Saved {args.command} analysis: {output}")
