@@ -1,0 +1,115 @@
+reliability confirmation: 0/60 complete; 60 pending
+completed 1/60: reward_only, seed=504
+completed 2/60: reward_only, seed=502
+completed 3/60: reward_only, seed=503
+completed 4/60: reward_only, seed=501
+completed 5/60: reward_only, seed=505
+completed 6/60: reward_only, seed=507
+completed 7/60: reward_only, seed=509
+completed 8/60: reward_only, seed=506
+completed 9/60: reward_only, seed=508
+completed 10/60: reward_only, seed=511
+completed 11/60: reward_only, seed=510
+completed 12/60: reward_only, seed=513
+completed 13/60: reward_only, seed=514
+completed 14/60: reward_only, seed=515
+completed 15/60: reward_only, seed=516
+completed 16/60: reward_only, seed=512
+completed 17/60: reward_only, seed=518
+completed 18/60: reward_only, seed=519
+completed 19/60: logbarrier_handoff_h25, seed=501
+completed 20/60: logbarrier_handoff_h25, seed=502
+completed 21/60: reward_only, seed=517
+completed 22/60: reward_only, seed=520
+completed 23/60: logbarrier_handoff_h25, seed=503
+completed 24/60: logbarrier_handoff_h25, seed=504
+completed 25/60: logbarrier_handoff_h25, seed=505
+completed 26/60: logbarrier_handoff_h25, seed=506
+completed 27/60: logbarrier_handoff_h25, seed=507
+completed 28/60: logbarrier_handoff_h25, seed=509
+completed 29/60: logbarrier_handoff_h25, seed=508
+completed 30/60: logbarrier_handoff_h25, seed=511
+completed 31/60: logbarrier_handoff_h25, seed=512
+completed 32/60: logbarrier_handoff_h25, seed=513
+completed 33/60: logbarrier_handoff_h25, seed=510
+completed 34/60: logbarrier_handoff_h25, seed=514
+completed 35/60: logbarrier_handoff_h25, seed=515
+completed 36/60: logbarrier_handoff_h25, seed=516
+completed 37/60: logbarrier_handoff_h25, seed=518
+completed 38/60: logbarrier_handoff_h25, seed=517
+completed 39/60: logbarrier_handoff_h25, seed=519
+completed 40/60: logbarrier_handoff_h25, seed=520
+completed 41/60: entropy_fixed, seed=501
+completed 42/60: entropy_fixed, seed=502
+completed 43/60: entropy_fixed, seed=504
+completed 44/60: entropy_fixed, seed=503
+completed 45/60: entropy_fixed, seed=505
+completed 46/60: entropy_fixed, seed=506
+completed 47/60: entropy_fixed, seed=507
+completed 48/60: entropy_fixed, seed=508
+completed 49/60: entropy_fixed, seed=509
+completed 50/60: entropy_fixed, seed=510
+completed 51/60: logbarrier_fixed, seed=501
+completed 52/60: logbarrier_fixed, seed=502
+completed 53/60: logbarrier_fixed, seed=503
+completed 54/60: logbarrier_fixed, seed=504
+completed 55/60: logbarrier_fixed, seed=505
+completed 56/60: logbarrier_fixed, seed=506
+completed 57/60: logbarrier_fixed, seed=507
+completed 58/60: logbarrier_fixed, seed=509
+completed 59/60: logbarrier_fixed, seed=508
+completed 60/60: logbarrier_fixed, seed=510
+{
+  "complete": true,
+  "control_seeds": [
+    501,
+    502,
+    503,
+    504,
+    505,
+    506,
+    507,
+    508,
+    509,
+    510
+  ],
+  "episodes_per_update": 8,
+  "failure_definition": "final stochastic return < -300.0 OR final stochastic termination rate < 0.8",
+  "handoff_fraction": 0.25,
+  "learning_rate": 0.003,
+  "primary_methods": [
+    "reward_only",
+    "logbarrier_handoff_h25"
+  ],
+  "primary_seeds": [
+    501,
+    502,
+    503,
+    504,
+    505,
+    506,
+    507,
+    508,
+    509,
+    510,
+    511,
+    512,
+    513,
+    514,
+    515,
+    516,
+    517,
+    518,
+    519,
+    520
+  ],
+  "schema_version": 1,
+  "scientific_winner_asserted": false,
+  "secondary_controls": [
+    "entropy_fixed",
+    "logbarrier_fixed"
+  ],
+  "selected_beta": 546.4135158976487,
+  "selected_entropy_coefficient": 588.8195483317652,
+  "updates": 1000
+}

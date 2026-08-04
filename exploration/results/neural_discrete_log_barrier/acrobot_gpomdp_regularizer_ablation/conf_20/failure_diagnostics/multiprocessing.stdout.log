@@ -1,0 +1,20 @@
+failed-seed diagnostic 1/2: fixed barrier, seed=512
+failed-seed diagnostic 2/2: fixed barrier, seed=517
+{
+  "checkpoint_rows": 130,
+  "complete": true,
+  "failed_reward_only_seeds": [
+    512,
+    517
+  ],
+  "fixed_barrier_extra_runs": 2,
+  "included_in_confirmatory_statistics": false,
+  "methods": [
+    "reward_only",
+    "logbarrier_handoff_h25",
+    "logbarrier_fixed"
+  ],
+  "post_hoc_outcome_selected": true,
+  "schema_version": 1,
+  "training_rerun_for_existing_methods": false
+}

@@ -1,0 +1,5 @@
+run_label,seed_count,failures,failure_rate,failure_rate_wilson95_low,failure_rate_wilson95_high,mean_final_stochastic_return,mean_environment_step_return_auc
+entropy_fixed,10,0,0.0,0.0,0.2775327998628892,-244.34375,-282.7879805554882
+logbarrier_fixed,10,0,0.0,0.0,0.2775327998628892,-233.4,-294.328317888376
+logbarrier_handoff_h25,20,0,0.0,0.0,0.16112515805281938,-89.4328125,-260.0382456891906
+reward_only,20,2,0.1,0.027866481213768224,0.3010336452284873,-129.365625,-280.17228199486266

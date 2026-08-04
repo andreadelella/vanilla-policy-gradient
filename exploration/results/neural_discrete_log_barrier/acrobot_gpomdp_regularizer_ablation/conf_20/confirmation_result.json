@@ -1,0 +1,54 @@
+{
+  "complete": true,
+  "control_seeds": [
+    501,
+    502,
+    503,
+    504,
+    505,
+    506,
+    507,
+    508,
+    509,
+    510
+  ],
+  "episodes_per_update": 8,
+  "failure_definition": "final stochastic return < -300.0 OR final stochastic termination rate < 0.8",
+  "handoff_fraction": 0.25,
+  "learning_rate": 0.003,
+  "primary_methods": [
+    "reward_only",
+    "logbarrier_handoff_h25"
+  ],
+  "primary_seeds": [
+    501,
+    502,
+    503,
+    504,
+    505,
+    506,
+    507,
+    508,
+    509,
+    510,
+    511,
+    512,
+    513,
+    514,
+    515,
+    516,
+    517,
+    518,
+    519,
+    520
+  ],
+  "schema_version": 1,
+  "scientific_winner_asserted": false,
+  "secondary_controls": [
+    "entropy_fixed",
+    "logbarrier_fixed"
+  ],
+  "selected_beta": 546.4135158976487,
+  "selected_entropy_coefficient": 588.8195483317652,
+  "updates": 1000
+}
