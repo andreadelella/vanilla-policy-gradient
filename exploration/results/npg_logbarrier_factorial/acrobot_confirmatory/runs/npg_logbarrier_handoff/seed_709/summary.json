@@ -1,0 +1,18 @@
+{
+  "actual_updates": 1000,
+  "complete": true,
+  "environment_step_return_auc": -225.52182032068322,
+  "failure": false,
+  "final_deterministic_return": -102.65625,
+  "final_stochastic_return": -115.3125,
+  "final_stochastic_termination_rate": 1.0,
+  "finite": true,
+  "initial_weight_identifier": "f0492121775756c2817176891ed16841fd90b4bd5b68cd394d9b62fd0097de50",
+  "invalid_reason": null,
+  "method": "npg_logbarrier_handoff",
+  "realized_kl_explosion_count": 2,
+  "schema_version": 1,
+  "seed": 709,
+  "training_episodes": 8000,
+  "true_environment_steps": 1354717
+}

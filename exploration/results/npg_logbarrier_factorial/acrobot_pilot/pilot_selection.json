@@ -1,0 +1,10 @@
+{
+  "coefficient_mode": "same_beta",
+  "gate_passed": true,
+  "same_beta_median_early_natural_ratio": 0.05761341048212511,
+  "schema_version": 1,
+  "selected_beta": 546.4135158976487,
+  "selected_damping": 0.01,
+  "selected_target_kl": 0.001,
+  "selection_uses_final_confirmatory_outcomes": false
+}
