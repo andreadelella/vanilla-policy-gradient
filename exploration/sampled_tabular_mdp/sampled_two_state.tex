@@ -1,0 +1,391 @@
+\documentclass[10pt,a4paper]{article}
+\usepackage[margin=1.8cm]{geometry}
+\usepackage{amsmath,amssymb,booktabs,tabularx,graphicx}
+\usepackage[hidelinks]{hyperref}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.45em}
+\title{Step 4: Finite-Batch Sampled Two-State MDP}
+\author{Estimator audit, sampled training, and results}
+\date{August 2026}
+\begin{document}
+\maketitle
+\begin{center}
+\fbox{\parbox{0.92\textwidth}{This stage separates population objectives,
+finite-batch estimators, and oracle controls before any neural-policy claim.
+The full experiment completed 128/128 units; the results below use 100 paired
+seeds per primary configuration.}}
+\end{center}
+\tableofcontents
+
+\section{Research path}
+Cesani, Papini, and Restelli prove for a reduced categorical softmax bandit
+\begin{equation}
+\log\det F_{\mathrm{red}}=\sum_a\log\pi(a),
+\qquad \nabla\log\det F_{\mathrm{red}}=\mathbf 1-K\pi.
+\end{equation}
+Step 1 verified this identity, Step 2 added stochastic bandit rewards, and
+Step 3 introduced state visitation while keeping every expectation exact.
+Step 4 replaces population expectations by finite trajectory batches. This
+isolates estimator bias, variance, rank loss, and missing-state batches before
+shared neural parameters are introduced \cite{cesani2026}.
+
+\section{Controlled MDP}
+All trajectories start at $s_0$. At $s_0$, $a_0$ terminates with reward $0.5$,
+$a_1$ reaches $s_1$ with reward zero, and $a_2$ terminates with reward zero.
+At $s_1$, actions terminate with rewards $(1,0.2,0)$. The horizon is two,
+$\gamma=1$, and each state uses two reduced logits with $a_2$ as reference.
+Writing $q=\pi_0(a_1)$,
+\begin{equation}
+J(\phi)=0.5\pi_0(a_0)+q[\pi_1(a_0)+0.2\pi_1(a_1)].
+\end{equation}
+This separates reaching $s_1$ from behaving well after reaching it.
+
+\section{Population geometry from Step 3}
+An infinite transition-pooled dataset has
+\begin{equation}
+\mu_0=\frac{1}{1+q},\qquad \mu_1=\frac{q}{1+q},\qquad
+F_{\mathrm{pool}}=\operatorname{blockdiag}(\mu_0F_0,\mu_1F_1).
+\end{equation}
+With $B_s=\sum_a\log\pi_s(a)$,
+\begin{align}
+\log\det F_{\mathrm{pool}}&=B_0+B_1+2\log\mu_0+2\log\mu_1,\\
+B_{\mathrm{full}}&=\tfrac12\log\det F_{\mathrm{pool}}
+=\tfrac12(B_0+B_1)+\log\mu_0+\log\mu_1.
+\end{align}
+The factor $1/2$ is an action-matched convention, not a canonical one.
+
+\section{Finite-batch transition pooling}
+For $N$ trajectories, define
+\begin{equation}
+X_i=\mathbf1\{\text{trajectory }i\text{ reaches }s_1\},\qquad
+K_1=\sum_iX_i\sim\operatorname{Binomial}(N,q).
+\end{equation}
+There are $M=N+K_1$ valid transitions and
+\begin{equation}
+\widehat\mu_0=\frac{N}{N+K_1},\qquad
+\widehat\mu_1=\frac{K_1}{N+K_1}.
+\end{equation}
+The denominator is random, so at finite $N$,
+\begin{equation}
+\mathbb E[\widehat\mu_1]\ne\frac{q}{1+q},
+\qquad \Pr(K_1=0)=(1-q)^N.
+\end{equation}
+When $K_1=0$, the sampled barrier has no $s_1$ component, the empirical Fisher
+has a zero $F_1$ block, and its log-determinant is undefined. No pseudocount or
+spectral floor hides this event.
+
+\section{Sampled estimators}
+The primary reward estimator is raw reward-to-go REINFORCE \cite{Williams1992}:
+\begin{equation}
+\widehat g_J=\frac1N\sum_i\sum_tG_{i,t}
+\nabla_\phi\log\pi_\phi(A_{i,t}\mid S_{i,t}).
+\end{equation}
+It averages complete trajectory contributions. Centering and normalization
+are disabled in the primary result.
+
+The practical categorical barrier is
+\begin{equation}
+\widehat g_{\mathrm{cond}}=
+\widehat\mu_0\nabla B_0+\widehat\mu_1\nabla B_1.
+\end{equation}
+It treats sampled states as fixed and therefore omits visitation derivatives.
+
+One score row is formed for every valid sampled transition:
+\begin{equation}
+S_{m,:}=\nabla_\phi\log\pi_\phi(a_m\mid s_m)^{\top},
+\qquad \widehat F=\frac1M S^{\top}S.
+\end{equation}
+This Fisher is undamped and may be rank deficient. It is not the reward
+Hessian and is not automatically interchangeable with the population Fisher
+\cite{kunstner2019}.
+
+\section{Seven training curves}
+Every curve uses a sampled reward gradient. Six retain Step 3 regularizers as
+population-oracle controls; the seventh is the practical estimator.
+\begin{center}\small
+\begin{tabularx}{\textwidth}{lX}
+\toprule
+Identifier & Meaning \\ \midrule
+\texttt{reward\_only} & No regularizer. \\
+\texttt{detached\_conditional\_oracle} & Exact population conditional direction. \\
+\texttt{complete\_weighted\_oracle} & Complete derivative of $\mu_0B_0+\mu_1B_1$. \\
+\texttt{uniform\_action\_oracle} & Equal protection of both state policies. \\
+\texttt{visitation\_only\_oracle} & Exact state-visitation pressure. \\
+\texttt{full\_pooled\_fisher\_oracle} & Exact action plus visitation barrier. \\
+\texttt{detached\_conditional\_sampled} & Valid-transition-pooled estimator. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+Visitation and full methods are diagnostic oracles, not algorithms claimed to
+be available from ordinary neural rollout states.
+
+\section{Experiments and meaning}
+The fixed-policy audit uses uniform, adverse, rare-state/good-action,
+common-state/bad-action, and near-optimal policies at
+\begin{equation}
+N\in\{1,2,4,8,16,32,64,128,256\}.
+\end{equation}
+Exact finite-$N$ moments establish ground truth; Monte Carlo validates the
+formulas and measures nonlinear rank statistics.
+
+The learning grid uses $\alpha=0.05$, 2000 updates,
+$\beta\in\{0.01,0.1,0.2\}$, $N\in\{4,32,128\}$, and uniform and adverse
+initializations. The full preset uses 100 paired seeds. Comparing sampled and
+oracle conditional curves isolates the random-ratio effect.
+
+Secondary experiments add one terminal Gaussian reward-noise draw with
+standard deviation one or reproduce project return centering and normalization.
+They remain secondary because they add variance or change gradient scale.
+
+\section{Results}
+\subsection{Execution status and reading rule}
+The full preset completed all 128 declared configuration-method units with no
+non-finite run. It produced 128 compressed trajectory archives and 58 plots.
+Unless explicitly stated otherwise, endpoint numbers below are means over 100
+paired seeds after 2000 updates. Confidence intervals are two-sided 95\%
+Student-$t$ intervals across seeds.
+
+The result should be read as an estimator study, not as a competition in which
+every curve is equally implementable. In particular, the full pooled-Fisher
+and visitation-only gradients use exact population information and are oracle
+diagnostics. The practical candidate is
+\texttt{detached\_conditional\_sampled}.
+
+\subsection{Fixed-policy audit: what finite batches lose}
+The adverse initialization has a rare $s_1$. Table~\ref{tab:audit} shows the
+main mechanism. The mean conditional-gradient bias becomes small with $N$,
+but the event $K_1=0$ remains common. Moreover, the undamped four-dimensional
+empirical Fisher is often rank deficient, so its ordinary log-determinant is
+undefined.
+
+\begin{table}[htbp]
+\centering\small
+\caption{Adverse-policy audit. ``Defined'' requires positive determinant sign
+and numerical rank four. The Monte Carlo columns use 50,000 batches.}
+\label{tab:audit}
+\begin{tabular}{rrrrr}
+\toprule
+$N$ & $\Pr(K_1=0)$ & $\|\mathbb E\widehat g_{\rm cond}-g_{\rm cond}\|_2$
+& Full-rank fraction & Defined log-det. \\
+\midrule
+4   & 0.93799 & 0.007974 & 0.00056 & 0.00056 \\
+32  & 0.59923 & 0.001193 & 0.02388 & 0.02388 \\
+128 & 0.12893 & 0.000304 & 0.19748 & 0.19748 \\
+256 & 0.01662 & 0.000153 & 0.40852 & 0.40852 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\begin{minipage}[t]{0.49\textwidth}
+\centering
+\includegraphics[width=\linewidth]{\detokenize{exploration/results/tabular_mdp/two_step_trap_sampled/full/plots/audit/zero_s1.png}}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.49\textwidth}
+\centering
+\includegraphics[width=\linewidth]{\detokenize{exploration/results/tabular_mdp/two_step_trap_sampled/full/plots/audit/fisher_rank.png}}
+\end{minipage}
+\caption{Left: exact and simulated probability that a batch never visits
+$s_1$. Right: fraction of empirical Fishers having numerical rank four. The
+adverse and rare-state policies need much larger batches than common-state
+policies.}
+\label{fig:audit}
+\end{figure}
+
+The distinction is important. The ratio estimator has a finite-$N$ mean bias,
+but a more visible operational failure is intermittent protection: when
+$K_1=0$, the sampled regularizer contributes exactly zero in the $s_1$ block.
+The literal empirical log-determinant is therefore not a robust finite-batch
+training object here unless one adds a separate stabilization assumption,
+which this experiment intentionally does not do.
+
+\subsection{Main adverse-start comparison}
+Table~\ref{tab:adverse} reports the central configuration
+$(N,\beta)=(32,0.1)$. The adverse start makes the unregularized policy prefer
+the immediate $0.5$ reward and almost stop visiting $s_1$. The sampled
+conditional barrier substantially changes both $q$ and the action policy at
+$s_1$, and closely follows its population conditional oracle. It does not,
+however, reproduce the explicit visitation component of the full objective.
+
+\begin{table}[htbp]
+\centering\scriptsize
+\caption{Adverse initialization, $N=32$, $\beta=0.1$. Intervals apply to final
+return $J$; $q=\pi_0(a_1)$ and $p_{\rm good}=\pi_1(a_0)$.}
+\label{tab:adverse}
+\begin{tabularx}{\textwidth}{Xrrrr}
+\toprule
+Method & Mean $J$ & 95\% CI for $J$ & Final $q$ & Final $p_{\rm good}$ \\
+\midrule
+Reward only & 0.49069 & [0.49068, 0.49070] & 0.00204 & 0.01590 \\
+Conditional oracle & 0.40155 & [0.40073, 0.40236] & 0.24789 & 0.31082 \\
+Conditional sampled & 0.39987 & [0.39901, 0.40073] & 0.24574 & 0.30160 \\
+Complete weighted oracle & 0.38712 & [0.38667, 0.38757] & 0.23136 & 0.23418 \\
+Uniform action oracle & 0.56989 & [0.56584, 0.57393] & 0.53882 & 0.70237 \\
+Visitation-only oracle & 0.41896 & [0.41877, 0.41915] & 0.19223 & 0.01729 \\
+Full pooled-Fisher oracle & 0.78465 & [0.78410, 0.78521] & 0.82920 & 0.86625 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.94\textwidth]{\detokenize{exploration/results/tabular_mdp/two_step_trap_sampled/full/plots/training/main__adverse__n32__b0p1/performance_and_visitation.png}}
+\caption{Adverse-start learning trajectories for the central configuration.
+The panels must be read jointly: return alone does not reveal whether a method
+changes visitation $q$ or the conditional good-action probability at $s_1$.}
+\label{fig:main}
+\end{figure}
+
+These endpoints expose the decomposition established in Step 3.
+Visitation-only pressure raises $q$ but leaves the bad $s_1$ action policy
+largely intact. Uniform action protection improves the $s_1$ policy and also
+permits more visitation through its interaction with the reward gradient. The
+full oracle combines both directions and reaches the best endpoint in this
+declared adverse-start configuration. This is evidence about the controlled
+objective, not evidence that an ordinary neural rollout supplies the full
+gradient.
+
+\subsection{Does the sampled conditional estimator approach its oracle?}
+The paired endpoint difference
+$J_{\rm sampled}-J_{\rm conditional\ oracle}$ decreases with batch size:
+\begin{table}[htbp]
+\centering\small
+\caption{Paired final-return gap at the adverse start and $\beta=0.1$.}
+\label{tab:paired}
+\begin{tabular}{rrr}
+\toprule
+$N$ & Mean paired difference & 95\% CI \\
+\midrule
+4   & -0.013242 & [-0.014706, -0.011778] \\
+32  & -0.001675 & [-0.001862, -0.001488] \\
+128 & -0.000407 & [-0.000492, -0.000322] \\
+\bottomrule
+\end{tabular}
+\end{table}
+The gap is statistically resolved because runs are paired, but its magnitude
+shrinks by roughly an order of magnitude from $N=4$ to $N=128$. This agrees
+with the finite-batch analysis: the practical estimator converges toward the
+population conditional direction while never acquiring the missing
+visitation derivative.
+
+\subsection{Barrier strength and endpoint maps}
+The adverse-start outcome is non-monotone in $\beta$; increasing the barrier
+does not simply improve return.
+\begin{table}[htbp]
+\centering\small
+\caption{Mean final return at the adverse start, $N=32$. Reward-only is the
+common reference $J=0.49069$.}
+\label{tab:beta}
+\begin{tabular}{rrrr}
+\toprule
+$\beta$ & Conditional sampled & Uniform action oracle & Full oracle \\
+\midrule
+0.01 & 0.47724 & 0.48469 & 0.47641 \\
+0.10 & 0.39987 & 0.56989 & 0.78465 \\
+0.20 & 0.59361 & 0.58424 & 0.61968 \\
+\bottomrule
+\end{tabular}
+\end{table}
+Here $\beta=0.01$ is weak, while $\beta=0.2$ introduces more regularization
+bias than the full oracle's $\beta=0.1$ setting. The conditional method also
+changes basin between $0.1$ and $0.2$, so the table should not be summarized by
+a single universal ordering.
+
+\begin{figure}[htbp]
+\centering
+\begin{minipage}[t]{0.49\textwidth}
+\centering
+\includegraphics[width=\linewidth]{\detokenize{exploration/results/tabular_mdp/two_step_trap_sampled/full/plots/endpoints/adverse__detached_conditional_sampled.png}}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.49\textwidth}
+\centering
+\includegraphics[width=\linewidth]{\detokenize{exploration/results/tabular_mdp/two_step_trap_sampled/full/plots/endpoints/adverse__full_pooled_fisher_oracle.png}}
+\end{minipage}
+\caption{Endpoint maps over $N$ and $\beta$: practical sampled conditional
+barrier (left) and full population oracle (right). These maps expose batch-size
+and regularization-strength interactions hidden by one selected curve.}
+\label{fig:heatmaps}
+\end{figure}
+
+\subsection{Favorable start and secondary bridges}
+The barrier is not free. From the uniform initialization at $N=32$ and
+$\beta=0.1$, reward-only reaches $J=0.97347$, while conditional sampled reaches
+$0.79366$ and the full oracle reaches $0.79500$. Visitation-only reaches
+$0.97500$. Thus a regularizer that helps escape the adverse basin can bias a
+policy that is already learning the rewarding path. This is why results from
+both prescribed initializations are necessary.
+
+Adding terminal Gaussian noise with standard deviation one leaves the adverse
+endpoint means qualitatively similar: reward-only $0.49068$, conditional
+sampled $0.40018$, and full oracle $0.78350$, with wider uncertainty. In
+contrast, project-style return centering and normalization at $N=128$ changes
+the gradient scale: the corresponding endpoints are $0.49947$, $0.47884$, and
+$0.96879$. The same numerical $\beta$ therefore represents a different
+reward-to-regularizer balance after preprocessing and must be recalibrated in
+a neural experiment.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.94\textwidth]{\detokenize{exploration/results/tabular_mdp/two_step_trap_sampled/full/plots/training/processed__adverse__n128__b0p1/performance_and_visitation.png}}
+\caption{Secondary project-style centering and normalization experiment. It
+is a bridge to the current GPOMDP implementation, not the primary estimator
+result. Its changed gradient scale explains why the same $\beta$ is not a
+like-for-like regularization strength.}
+\label{fig:processed}
+\end{figure}
+
+\section{What the experiment establishes}
+The finite-batch sampled conditional estimator is mathematically and
+empirically characterized in this controlled problem. Its mean approaches the
+population conditional target as $N$ increases, while rare-state batches can
+remove direct protection of that state entirely. Its training behavior closely
+approaches the conditional oracle with increasing $N$.
+
+The experiment also confirms that three objects must remain distinct:
+\begin{equation}
+\mathbb E_{s\sim\mu_\theta}[\nabla B_s],\qquad
+\nabla\mathbb E_{s\sim\mu_\theta}[B_s],\qquad
+\nabla\log\det F_{\mathrm{pool}}.
+\end{equation}
+The sampled conditional method estimates the first object. The complete
+weighted oracle differentiates the second. The normalized full pooled-Fisher
+oracle contains a separate visitation term. Their different returns do not by
+themselves prove a causal effect of Fisher geometry, and a larger determinant
+does not guarantee better conditioning.
+
+\section{Statistics, reproduction, and decision gate}
+Complete seeds are independent units. Curves use two-sided 95\% Student-$t$
+intervals across seeds. Checkpoints within a seed are repeated observations;
+endpoint comparisons use paired seed-level differences.
+
+\begin{verbatim}
+python -m exploration.sampled_tabular_mdp.verify
+python -m exploration.sampled_tabular_mdp.run_experiment --preset smoke
+python -m exploration.sampled_tabular_mdp.run_experiment --preset pilot
+python -m exploration.sampled_tabular_mdp.run_experiment --preset full
+\end{verbatim}
+Outputs are stored under
+\texttt{exploration/results/tabular\_mdp/two\_step\_trap\_sampled/}.
+
+This stage can establish finite-batch behavior and its association with
+learning. It cannot prove that Fisher volume causes return, make oracle
+visitation gradients practical, or establish transfer to shared neural
+parameters. The later neural candidate must be called an \emph{on-policy
+sampled-state conditional categorical log barrier}, not a global neural Fisher
+log-determinant.
+
+\begin{thebibliography}{9}
+\bibitem{cesani2026} L. Cesani, M. Papini, and M. Restelli,
+``How Log-Barrier Helps Exploration in Policy Optimization,'' 2026.
+\url{https://arxiv.org/html/2603.15001v2}
+\bibitem{Williams1992} R. J. Williams,
+``Simple Statistical Gradient-Following Algorithms for Connectionist
+Reinforcement Learning,'' \emph{Machine Learning}, 8, 1992.
+\url{https://doi.org/10.1007/BF00992696}
+\bibitem{kunstner2019} F. Kunstner, P. Hennig, and L. Balles,
+``Limitations of the Empirical Fisher Approximation for Natural Gradient
+Descent,'' \emph{NeurIPS 32}, 2019.
+\href{https://proceedings.neurips.cc/paper/2019/hash/46a558d97954d0692411c861cf78ef79-Abstract.html}{Official NeurIPS page.}
+\end{thebibliography}
+\end{document}

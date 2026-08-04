@@ -1,0 +1,922 @@
+\documentclass[10pt,a4paper]{article}
+\usepackage[margin=1.75cm]{geometry}
+\usepackage{amsmath,amssymb,booktabs,graphicx,tabularx,array,xcolor}
+\usepackage[hidelinks]{hyperref}
+\graphicspath{{exploration/results/tabular_mdp/two_step_trap/}{../results/tabular_mdp/two_step_trap/}}
+
+\newcommand{\pool}{\mathrm{pool}}
+\newcommand{\good}{p_{\mathrm{good}}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\grad}{\nabla_{\phi}}
+\newcommand{\coloneqq}{\mathrel{\mathop:}=}
+
+\title{Step 3: Exact Two-State Tabular MDP Geometry\\
+\large A self-contained reconstruction of the motivation, mathematics,
+implementation, experiments, and conclusions}
+\author{Vanilla Policy Gradient Project}
+\date{August 2026}
+
+\begin{document}
+\maketitle
+
+\begin{center}
+\fbox{\parbox{0.94\textwidth}{
+\textbf{What this document is for.}
+This is a reconstruction guide, not only a result summary.  Starting from the
+multi-armed-bandit log barrier of Cesani, Papini, and Restelli, it explains why
+we introduced a two-state MDP, defines every mathematical object used in the
+code, derives the six regularizers, states what each experiment isolates, and
+then interprets the generated figures without claiming more than the exact
+tabular evidence supports.
+}}
+\end{center}
+
+\tableofcontents
+
+\section{Scientific path: why Step 3 exists}
+
+\subsection{The problem identified in the bandit paper}
+
+Cesani et al. study a stochastic $K$-armed bandit controlled by a categorical
+softmax policy.  Their starting observation is that an ordinary stochastic
+policy-gradient update can drive action probabilities close to zero.  Once an
+action is extremely unlikely, it is rarely sampled and its score-weighted
+reward signal becomes too weak to repair an early mistake.  They describe this
+as an exploration failure near the boundary of the probability simplex
+\cite[Secs.~1--3]{cesani2026}.  This concern is related to the local nature of
+policy-gradient exploration more generally \cite{agarwal2020}.
+
+Their proposed bandit objective is
+\begin{equation}
+\Phi_\eta(\theta)
+=J(\theta)+\frac1\eta\sum_{a=1}^{K}\log\pi_\theta(a),
+\label{eq:cesani-objective}
+\end{equation}
+where $1/\eta$ controls the barrier strength.  For a reduced categorical
+softmax policy they prove
+\begin{equation}
+\log\det F_{\mathrm{red}}(\theta)
+=\sum_a\log\pi_\theta(a).
+\label{eq:cesani-identity}
+\end{equation}
+Thus the probability-space log barrier has an exact reduced-Fisher
+log-determinant interpretation in the bandit setting
+\cite[Sec.~4 and App.~B.3.2]{cesani2026}.  Its gradient is deterministic,
+\begin{equation}
+\nabla_\theta\sum_a\log\pi_\theta(a)=\mathbf 1-K\pi_\theta,
+\label{eq:cesani-gradient}
+\end{equation}
+so it restores small action probabilities without adding reward noise
+\cite[Sec.~5 and App.~B.4]{cesani2026}.
+
+This is geometrically related to natural policy gradient (NPG), but it is not
+the same operation.  NPG preconditions the reward gradient by $F^{-1}$;
+the log barrier changes the objective so optimization is repelled from the
+simplex boundary.  Kakade introduced the policy Fisher as a metric for a
+coordinate-aware policy update \cite{Kakade2001}, following the natural-gradient
+framework of Amari \cite{Amari1998}.
+
+\subsection{What Steps 1 and 2 established}
+
+The project deliberately used a ladder of increasingly complicated settings:
+\begin{enumerate}
+\item \textbf{Step 1: exact categorical identity.}  With one categorical
+policy, every action was enumerated and
+\eqref{eq:cesani-identity}--\eqref{eq:cesani-gradient} were checked in CPU
+float64.  There were no rewards, trajectories, or state distribution.
+\item \textbf{Step 2: stochastic bandit training.}  Reward noise and sequential
+learning were introduced while the categorical Fisher identity remained exact.
+This reproduced the barrier's support-preservation mechanism and its
+exploration/bias trade-off, corresponding to the experimental questions in
+Sections 7 and E of Cesani et al. \cite{cesani2026}.
+\item \textbf{Step 3: this experiment.}  We introduce multiple states while
+keeping the entire MDP exactly enumerable.  This is the smallest setting in
+which the policy affects both an action distribution \emph{and} which state is
+represented in a transition-pooled dataset.
+\end{enumerate}
+
+\subsection{The question that cannot be answered by a bandit}
+
+A bandit has no state-visitation distribution.  In an MDP, a Fisher constructed
+from rollout transitions depends on two policy-controlled objects:
+\begin{equation}
+\underbrace{\text{which states appear}}_{\text{visitation}}
+\quad\text{and}\quad
+\underbrace{\pi_\phi(\cdot\mid s)}_{\text{conditional action geometry}}.
+\end{equation}
+Cesani et al. explicitly state that their exact bandit equivalence does not
+directly extend to general RL \cite[Sec.~8]{cesani2026}.  Step 3 therefore asks:
+\begin{quote}
+When state weights depend on the policy, what is the difference between
+averaging statewise categorical barrier gradients, differentiating their
+policy-weighted scalar average, protecting states uniformly, protecting only
+visitation, and differentiating the pooled Fisher log determinant?
+\end{quote}
+
+\section{The exact two-step trap MDP}
+
+\subsection{MDP tuple and transition table}
+
+We use the finite MDP
+\begin{equation}
+\mathcal M=(\mathcal S,\mathcal A,P,R,\rho_0,H,\gamma)
+\end{equation}
+with nonterminal states $\mathcal S=\{s_0,s_1\}$, actions
+$\mathcal A=\{a_0,a_1,a_2\}$, start distribution
+$\rho_0(s_0)=1$, horizon $H=2$, and discount $\gamma=1$.
+
+\begin{center}\small
+\begin{tabular}{llll}
+\toprule
+State & Action & Reward & Next state\\ \midrule
+$s_0$ & $a_0$ & $0.5$ & terminal (safe action)\\
+$s_0$ & $a_1$ & $0$ & $s_1$ (explore)\\
+$s_0$ & $a_2$ & $0$ & terminal (abandon)\\
+$s_1$ & $a_0$ & $1$ & terminal (good action)\\
+$s_1$ & $a_1$ & $0.2$ & terminal (mediocre action)\\
+$s_1$ & $a_2$ & $0$ & terminal (bad action)\\ \bottomrule
+\end{tabular}
+\end{center}
+
+This MDP is intentionally not a benchmark.  It is a diagnostic construction.
+The safe action supplies a local reward of $0.5$ without visiting $s_1$.
+The globally better outcome requires both selecting $a_1$ at $s_0$ and then
+learning $a_0$ at $s_1$.  A policy that rarely reaches $s_1$ receives little
+direct learning signal about its actions, creating a minimal visitation trap.
+
+\subsection{All possible trajectories}
+
+Let $\pi_s(a)=\pi_\phi(a\mid s)$.  There are five complete trajectories:
+\begin{center}\small
+\begin{tabular}{lll}
+\toprule
+Actions & Probability & Return\\ \midrule
+$(a_0)$ at $s_0$ & $\pi_0(a_0)$ & $0.5$\\
+$(a_2)$ at $s_0$ & $\pi_0(a_2)$ & $0$\\
+$(a_1,a_0)$ & $\pi_0(a_1)\pi_1(a_0)$ & $1$\\
+$(a_1,a_1)$ & $\pi_0(a_1)\pi_1(a_1)$ & $0.2$\\
+$(a_1,a_2)$ & $\pi_0(a_1)\pi_1(a_2)$ & $0$\\ \bottomrule
+\end{tabular}
+\end{center}
+Their probabilities sum exactly to one.  Writing
+\begin{equation}
+q\coloneqq\pi_0(a_1),
+\qquad
+V_1\coloneqq\pi_1(a_0)+0.2\pi_1(a_1),
+\end{equation}
+the expected return is
+\begin{equation}
+\boxed{J(\phi)=0.5\pi_0(a_0)+qV_1.}
+\label{eq:return}
+\end{equation}
+The code independently computes this closed form and the explicit sum over all
+five trajectories.
+
+\section{Policy coordinates, scores, and exact reward gradient}
+
+\subsection{Why reduced logits are used}
+
+At each state, action $a_2$ is the reference action.  Four free parameters are
+collected in
+\begin{equation}
+\phi=(\phi_{00},\phi_{01},\phi_{10},\phi_{11})\in\R^4.
+\end{equation}
+The statewise logits are
+\begin{equation}
+z_0=(\phi_{00},\phi_{01},0),
+\qquad
+z_1=(\phi_{10},\phi_{11},0),
+\end{equation}
+and $\pi_s=\operatorname{softmax}(z_s)$.  Fixing one reference logit removes the
+redundant common-logit direction.  The full three-logit Fisher is singular
+because adding the same constant to all logits leaves the policy unchanged;
+the two-coordinate Fisher is positive definite for every finite $\phi$.
+This is the same reduced chart used to establish the determinant identity in
+Cesani et al. \cite[Sec.~4]{cesani2026}.
+
+\subsection{Score and categorical Fisher at one state}
+
+For action $a$, the score in reduced coordinates is
+\begin{equation}
+g_s(a)=\nabla_{\phi_s}\log\pi_s(a)
+=e_a^{(2)}-\pi_s(0{:}2),
+\label{eq:score}
+\end{equation}
+where $e_0^{(2)}=(1,0)$, $e_1^{(2)}=(0,1)$, and
+$e_2^{(2)}=(0,0)$.  Exact enumeration verifies
+\begin{equation}
+\E_{a\sim\pi_s}[g_s(a)]=0
+\end{equation}
+and
+\begin{equation}
+F_s
+=\E_{a\sim\pi_s}[g_s(a)g_s(a)^\top]
+=\operatorname{Diag}(\pi_s(0{:}2))
+-\pi_s(0{:}2)\pi_s(0{:}2)^\top.
+\label{eq:state-fisher}
+\end{equation}
+This is the standard score-outer-product definition of Fisher information.
+Natural-gradient policy methods use such a Fisher as the local policy metric
+\cite{Kakade2001}.
+
+\subsection{Exact reward gradient and its REINFORCE interpretation}
+
+For $Q_0=(0.5,V_1,0)$ and $r_1=(1,0.2,0)$, the exact gradient is
+\begin{align}
+\nabla_{\phi_0}J
+&=\pi_0(0{:}2)\odot[Q_0(0{:}2)-J\mathbf 1],\\
+\nabla_{\phi_1}J
+&=q\,\pi_1(0{:}2)\odot[r_1(0{:}2)-V_1\mathbf 1].
+\label{eq:reward-gradient}
+\end{align}
+The factor $q$ in the second line is crucial: reward provides less direct
+learning signal for $s_1$ when that state is rarely reached.  The implementation
+also enumerates trajectories and verifies
+\begin{equation}
+\nabla J
+=\sum_\tau p_\phi(\tau)G(\tau)\nabla_\phi\log p_\phi(\tau).
+\label{eq:reinforce}
+\end{equation}
+Equation~\eqref{eq:reinforce} is the exact expectation underlying REINFORCE
+\cite{Williams1992} and policy-gradient estimators
+\cite{SuttonMcAllester2000}.  Here it has no Monte Carlo variance because all
+trajectories are summed.
+
+\section{The transition-pooled state distribution}
+
+\subsection{Definition and derivation}
+
+Define
+\begin{equation}
+\boxed{\mu_0=\frac1{1+q},\qquad \mu_1=\frac q{1+q}.}
+\label{eq:mu}
+\end{equation}
+We call this $\mu_{\pool}$ and define it precisely as:
+\begin{quote}
+The population state distribution obtained by uniformly selecting one valid
+action transition from an infinitely large transition-pooled rollout dataset.
+\end{quote}
+
+Every episode contains exactly one valid $s_0$ transition.  An episode contains
+an $s_1$ transition with probability $q$.  Therefore the population expected
+transition counts per episode are $(1,q)$; normalizing these counts gives
+Equation~\eqref{eq:mu}.  Shorter terminated trajectories contribute fewer rows
+to the globally pooled transition dataset.  This matches the averaging
+convention used when all valid score rows are concatenated before forming an
+outer-product average.
+
+\subsection{Why it is not canonical finite-horizon occupancy}
+
+The standard fixed-horizon time-average occupancy would be
+\begin{equation}
+d_H(s)=\frac1H\sum_{t=0}^{H-1}\Pr(S_t=s).
+\end{equation}
+It uses a fixed denominator $H$, whereas $\mu_{\pool}$ normalizes by the number
+of \emph{valid} transitions.  These are different estimands.
+
+For a finite batch of $N$ episodes, let $X_i$ indicate that episode $i$ reaches
+$s_1$.  The empirical pooled weight is
+\begin{equation}
+\widehat\mu_1
+=\frac{\sum_{i=1}^{N}X_i}{N+\sum_{i=1}^{N}X_i}.
+\label{eq:ratio-estimator}
+\end{equation}
+It has a random denominator.  In general,
+$\E[\widehat\mu_1]\neq q/(1+q)$.  Step 3 avoids this finite-batch ratio-estimator
+issue by using the population quantity exactly; the next stochastic stage will
+measure its bias, variance, and probability of observing zero $s_1$ transitions.
+
+\section{From statewise Fishers to the pooled Fisher}
+
+\subsection{Block structure}
+
+The parameters for $s_0$ and $s_1$ are disjoint.  Under $\mu_{\pool}$ the
+transition-pooled Fisher is therefore
+\begin{equation}
+\boxed{F_{\pool}
+=\operatorname{blockdiag}(\mu_0F_0,\mu_1F_1).}
+\label{eq:pooled-fisher}
+\end{equation}
+This exact block structure would generally disappear with shared neural
+parameters.  It is a deliberate advantage of the tabular diagnostic.
+
+For a three-action reduced categorical softmax,
+\begin{equation}
+\det F_s=\prod_{a=0}^{2}\pi_s(a),
+\qquad
+B_s\coloneqq\log\det F_s=\sum_{a=0}^{2}\log\pi_s(a).
+\end{equation}
+Because multiplying a $2\times2$ block by $\mu_s$ multiplies its determinant by
+$\mu_s^2$,
+\begin{equation}
+\boxed{
+\log\det F_{\pool}
+=B_0+B_1+2\log\mu_0+2\log\mu_1.}
+\label{eq:pooled-logdet}
+\end{equation}
+
+\subsection{Normalized full barrier}
+
+We define
+\begin{align}
+B_{\mathrm{full}}
+&\coloneqq\frac12\log\det F_{\pool}\\
+&=\underbrace{\frac12(B_0+B_1)}_{B_{\mathrm{uniform}}}
++\underbrace{\log\mu_0+\log\mu_1}_{B_{\mathrm{visit}}}.
+\label{eq:full-decomposition}
+\end{align}
+The factor $1/2$ is \emph{not canonical}.  It is an action-matched
+normalization chosen so that the action component is exactly
+$B_{\mathrm{uniform}}$.  Consequently, the difference between the normalized
+full barrier and the uniform-state action baseline is exactly the visitation
+term.  This makes the experiment interpretable; it is not a claim that all
+Fisher log determinants should be divided by two.
+
+\subsection{What the eigenvalues and determinants do and do not say}
+
+$\lambda_{\min}(F_s)$ measures the weakest local categorical direction at state
+$s$.  The pooled minimum combines conditional degeneration with the multiplier
+$\mu_s$.  A small $\lambda_{\min}(F_{\pool})$ can therefore mean:
+\begin{enumerate}
+\item the conditional action policy at $s_1$ is collapsing;
+\item $s_1$ is rarely represented because $\mu_1$ is small;
+\item both.
+\end{enumerate}
+$\log\det F$ is the sum of log eigenvalues and measures a local volume, not a
+condition number.  A larger determinant does not guarantee a larger smallest
+eigenvalue or better optimization.  Moreover, the sampled outer-product matrix
+often called an empirical Fisher must not automatically be treated as the true
+model Fisher or as a Hessian; Kunstner et al. explain this distinction in detail
+\cite{Kunstner2019}.
+
+\section{The six exact-gradient objectives}
+
+All methods use explicit Euler ascent
+\begin{equation}
+\phi_{k+1}=\phi_k+\alpha[\nabla J(\phi_k)+\beta g_B(\phi_k)].
+\label{eq:update}
+\end{equation}
+The reward gradient is identical across methods.  Only $g_B$ changes.
+
+\subsection{A. Reward only}
+\begin{equation}
+g_B=0.
+\end{equation}
+This is the control.  It shows the basin selected by the exact reward objective
+without geometry regularization.
+
+\subsection{B. Detached transition-pooled conditional surrogate}
+\begin{equation}
+g_{\mathrm{cond}}
+=\mu_0\nabla B_0+\mu_1\nabla B_1,
+\label{eq:conditional}
+\end{equation}
+where the $\mu_s$ values are held fixed during differentiation.  This equals
+the population expectation of computing a categorical barrier gradient at a
+state drawn from the transition-pooled dataset.  It directly protects each
+state's categorical action geometry in proportion to that state's dataset
+frequency.  Consequently, direct protection of rarely visited states is weaker.
+
+\subsection{C. Complete transition-pooled-weighted scalar objective}
+\begin{equation}
+B_{\mathrm{weighted}}=\mu_0B_0+\mu_1B_1.
+\end{equation}
+Its complete derivative is
+\begin{equation}
+\boxed{
+\nabla B_{\mathrm{weighted}}
+=g_{\mathrm{cond}}+B_0\nabla\mu_0+B_1\nabla\mu_1.}
+\label{eq:weighted-gradient}
+\end{equation}
+This method asks what changes when we differentiate the policy-dependent state
+weights instead of detaching them.  The extra term is not a categorical action
+barrier; it comes from changing which states populate the pooled dataset.
+
+\subsection{D. Uniform-state action barrier}
+\begin{equation}
+B_{\mathrm{uniform}}=\frac12(B_0+B_1).
+\end{equation}
+This is an oracle fixed-state-reference baseline.  It protects both statewise
+categorical policies equally, regardless of how often the current policy visits
+the states.  It is not directly available from ordinary on-policy sampled-state
+averaging when a state is absent.
+
+\subsection{E. Visitation-only barrier}
+From Equation~\eqref{eq:mu},
+\begin{equation}
+B_{\mathrm{visit}}
+=\log\mu_0+\log\mu_1
+=\log q-2\log(1+q).
+\end{equation}
+Therefore
+\begin{equation}
+\frac{dB_{\mathrm{visit}}}{dq}
+=\frac{1-q}{q(1+q)}>0,
+\qquad 0<q<1.
+\label{eq:visit-derivative}
+\end{equation}
+It always applies explicit pressure to visit $s_1$, independently of reward and
+independently of the quality of $\pi_1$.
+
+\subsection{F. Normalized full pooled-Fisher barrier}
+\begin{equation}
+B_{\mathrm{full}}
+=B_{\mathrm{uniform}}+B_{\mathrm{visit}},
+\qquad
+\nabla B_{\mathrm{full}}
+=\nabla B_{\mathrm{uniform}}+\nabla B_{\mathrm{visit}}.
+\label{eq:full-gradient}
+\end{equation}
+This is the exact normalized log-determinant barrier for the declared
+transition-pooled Fisher.  It combines equal statewise action protection with
+explicit visitation pressure.
+
+\subsection{The three objects that must not be confused}
+
+Because $\mu_\theta$ depends on the policy,
+\begin{equation}
+\underbrace{\E_{s\sim\mu_\theta}[\nabla B_s]}_{\text{detached conditional}}
+\neq
+\underbrace{\nabla\E_{s\sim\mu_\theta}[B_s]}_{\text{complete weighted}}
+\neq
+\underbrace{\nabla\log\det F_{\pool}}_{\text{full pooled geometry}}
+\end{equation}
+in general.  Step 3 exists primarily to make this distinction explicit.
+
+\section{Exact implementation and verification philosophy}
+
+\subsection{Why there is no sampling in this stage}
+
+Sampling would mix three questions: whether the algebra is correct, whether a
+finite-batch estimator is biased, and whether its variance affects training.
+This stage isolates the first question and the population dynamics.  It uses:
+\begin{itemize}
+\item CPU float64;
+\item exact action and trajectory enumeration;
+\item analytical reward and barrier gradients;
+\item no Gym, neural network, Monte Carlo sampling, damping, clipping,
+spectral floor, or stochastic noise.
+\end{itemize}
+Therefore each curve is one deterministic trajectory.  Seeds and confidence
+intervals are neither needed nor meaningful here.
+
+\subsection{Independent checks}
+
+The verification CLI checks:
+\begin{itemize}
+\item trajectory probabilities and exact return enumeration;
+\item the population transition counts underlying $\mu_0,\mu_1$;
+\item zero expected scores and score-enumerated statewise Fishers;
+\item the enumerated pooled Fisher and block formula;
+\item symmetry, positive definiteness, and positive \texttt{slogdet} signs;
+\item Equation~\eqref{eq:pooled-logdet};
+\item the analytical reward gradient against exact REINFORCE enumeration;
+\item detached, complete-weighted, visitation, and full gradients against
+autograd and central finite differences;
+\item Equations~\eqref{eq:weighted-gradient} and \eqref{eq:full-gradient};
+\item deterministic replay, probability constructors, resume behavior, and
+artifact schemas.
+\end{itemize}
+All checks pass at the declared float64 tolerances.
+
+\subsection{Code objects and responsibilities}
+
+\begin{center}\small
+\begin{tabularx}{\textwidth}{lX}
+\toprule
+Object/module & Responsibility\\ \midrule
+\texttt{TwoStepTrap} & MDP constants, trajectory enumeration, exact return,
+and exact reward gradient.\\
+\texttt{model.py} & Reduced logits, policies, $q$, $\mu_0,\mu_1$, and stable
+probability-to-logit constructors.\\
+\texttt{geometry.py} & Scores, statewise and pooled Fishers, all barrier values,
+analytical gradients, and geometry snapshots.\\
+\texttt{ExactTrainingConfig} & Method, $\alpha$, $\beta$, update count, and
+experiment label.\\
+\texttt{ExactTrainingResult} & Complete parameter and metric histories plus
+finite-status flags; compressed deterministic serialization.\\
+\texttt{reporting.py} & CSV summaries, trajectory figures, gradient
+decompositions, phase plots, and basin maps.\\
+\texttt{verify.py} & Independent algebraic, autograd, finite-difference, and
+short robustness checks.\\
+\texttt{run\_experiment.py} & Main, magnitude-controlled, robustness, and basin
+suites; manifest validation and resume.\\ \bottomrule
+\end{tabularx}
+\end{center}
+
+\section{Experiment 1: main same-beta comparison}
+
+\subsection{Design and meaning}
+
+The declared setting is
+\begin{equation}
+\alpha=0.05,qquad N_{\mathrm{updates}}=2000,
+\qquad\beta\in\{0.01,0.1,0.2\}.
+\end{equation}
+All methods are first compared at the same numerical $\beta$.  This is the
+primary comparison because they are genuinely different regularized
+objectives, not approximations forced to have the same gradient norm.
+
+The two initializations are:
+\begin{align}
+\phi_{\mathrm{uniform}}&=(0,0,0,0),\\
+\phi_{\mathrm{adverse}}&=(2,-2,-2,2).
+\end{align}
+Uniform gives $q=\pi_1(a_0)=1/3$.  Adverse gives approximately
+$q=\pi_1(a_0)=0.0159$: $s_0$ strongly prefers the safe action, while $s_1$
+strongly prefers the mediocre action.  This is a predeclared difficult basin,
+not a seed selected after observing results.
+
+$\beta=0.01$ tests a weak barrier, $\beta=0.1$ tests an intermediate scale, and
+$\beta=0.2$ tests whether stronger regularization creates visible bias.  This
+parallels the barrier-strength trade-off emphasized by Cesani et al.
+\cite[Secs.~6.1 and E.2/E.5]{cesani2026}, although our deterministic MDP is not
+their stochastic Gaussian bandit experiment.
+
+\subsection{Main adverse endpoint}
+
+\begin{center}\small
+\begin{tabular}{lrrr}
+\toprule Method, $\beta=0.1$ & $J_T$ & $q_T$ & $\pi_1(a_0)_T$\\ \midrule
+Reward only & .491 & .002 & .016\\
+Detached conditional & .401 & .248 & .309\\
+Complete weighted & .387 & .231 & .233\\
+Uniform action & .565 & .533 & .699\\
+Visitation only & .419 & .192 & .017\\
+Full pooled Fisher & \textbf{.785} & \textbf{.830} & \textbf{.866}\\ \bottomrule
+\end{tabular}
+\par\smallskip\textit{Table 1: Exact endpoints from the adverse initialization.}
+\end{center}
+
+Reward-only ascent remains in the safe-action basin.  Visitation-only raises
+$q$ but does not repair $\pi_1$.  Uniform action repairs $\pi_1$ without the
+same direct pressure to reach it.  Full combines both and obtains the largest
+return in this declared comparison.
+
+From the uniform initialization, reward-only reaches $J=0.973$ and full at
+$\beta=0.1$ reaches $0.795$.  Thus regularization helps the adverse recovery
+but biases a policy that already follows a favorable path.  At the adverse
+start, $\beta=0.01$ is weak.  Increasing full to $\beta=0.2$ reduces its return
+from $0.785$ to $0.621$, while some conditional methods need the larger force
+to escape.  ``Stronger barrier'' is therefore not a universal performance order.
+
+\begin{figure}[htbp]\centering
+\includegraphics[width=.94\textwidth]{plots/main/adverse_beta_0p1/performance_policy.png}
+\caption{Main adverse trajectories.  Return alone is insufficient: $q$ says
+whether $s_1$ is reached, while $\pi_1(a_0)$ says whether the policy behaves
+well once it arrives.}
+\label{fig:performance}
+\end{figure}
+
+\begin{figure}[htbp]\centering
+\includegraphics[width=.86\textwidth]{plots/main/adverse_beta_0p1/phase_q_vs_good.png}
+\caption{Adverse policy-space phase plot.  Horizontal movement primarily
+changes visitation; vertical movement primarily repairs the good action at
+$s_1$.  Full moves along both coordinates.}
+\label{fig:phase}
+\end{figure}
+
+\section{Experiment 2: magnitude-controlled comparison}
+
+\subsection{What problem this control addresses}
+
+Equal $\beta$ does not imply equal update size because the five barrier
+gradients have different norms.  A method could appear stronger only because
+$\|\beta\nabla B\|$ is initially larger.  At the adverse initialization we set
+\begin{equation}
+\tau_{\mathrm{mag}}=\|\nabla J(\phi_0)\|_2,
+\qquad
+\beta_m=\frac{\tau_{\mathrm{mag}}}{\|\nabla B_m(\phi_0)\|_2}.
+\label{eq:magnitude-match}
+\end{equation}
+This makes the initial reward and regularizer contributions equal in norm.
+Reward-only remains an unscaled reference.  This is a secondary diagnostic,
+not a replacement for the main same-$\beta$ objectives.
+
+The resulting coefficients are $0.0301$ (detached and complete), $0.0420$
+(uniform), $0.0435$ (visitation), and $0.0234$ (full).
+
+\begin{center}\small
+\begin{tabular}{lrrr}
+\toprule Method & $J_T$ & $q_T$ & $\pi_1(a_0)_T$\\ \midrule
+Reward only & .491 & .002 & .016\\
+Detached conditional & .443 & .057 & .021\\
+Complete weighted & .444 & .055 & .021\\
+Uniform action & .459 & .039 & .242\\
+Visitation only & .453 & .078 & .016\\
+Full pooled Fisher & .453 & .069 & .135\\ \bottomrule
+\end{tabular}
+\par\smallskip\textit{Table 2: Endpoints after initial magnitude matching.}
+\end{center}
+
+No regularizer recovers within 2000 updates under this matched target.
+Consequently, full's strong same-$\beta$ recovery partly depends on scale.
+Direction still matters: uniform mainly changes $\pi_1$, visitation mainly
+changes $q$, and full changes both.
+
+\begin{figure}[htbp]\centering
+\includegraphics[width=.94\textwidth]{plots/main/adverse_beta_0p1/gradient_decompositions.png}
+\caption{Component norms and cosines.  The top row decomposes full into
+uniform-action and visitation directions.  The bottom row decomposes complete
+weighted into the detached conditional direction and the derivative of the
+state weights.}
+\label{fig:decomposition}
+\end{figure}
+
+\section{Experiment 3: explicit-Euler step-size robustness}
+
+The main result uses $\alpha=0.05$.  To test whether its qualitative behavior
+is a discretization artifact, the robustness study uses
+\begin{equation}
+\alpha\in\{0.025,0.05,0.1\}
+\end{equation}
+while keeping optimization time $\alpha N=100$ fixed.  The corresponding
+update counts are $4000$, $2000$, and $1000$.  Holding the update count fixed
+would change both the step size and total optimization time, so it would not
+isolate Euler discretization.
+
+All 36 runs remain finite.  Within a fixed method and initialization, the
+largest endpoint-return range across step sizes is $1.1\times10^{-4}$.
+Endpoint ordering and phase behavior are unchanged.  This supports the narrow
+claim that the reported exact dynamics are not artifacts of choosing only
+$\alpha=0.05$; it is not a hyperparameter search or a stability proof for
+arbitrary step sizes.
+
+\section{Experiment 4: deterministic initialization-basin grid}
+
+\subsection{Constructor and purpose}
+
+Two scalar probabilities are varied:
+\begin{equation}
+q_0\in\mathcal G,qquad \good{}_0=\pi_1(a_0)\in\mathcal G,
+\quad
+\mathcal G=\{.02,.05,.1,.25,.5,.75,.9\}.
+\end{equation}
+The remaining probability is split in a fixed, symmetric way:
+\begin{align}
+\pi_0&=(\tfrac12(1-q_0),q_0,\tfrac12(1-q_0)),\\
+\pi_1&=(\good{}_0,\tfrac12(1-\good{}_0),\tfrac12(1-\good{}_0)).
+\end{align}
+For reference action $a_2$, the stable reduced-logit constructor uses
+\begin{equation}
+\phi_a=\log\frac{\pi(a)}{\pi(a_2)}.
+\end{equation}
+The grid asks whether conclusions based on only uniform and adverse starts are
+localized accidents or reflect broader basins.
+
+Each map reports final return, final $q$, final good-action probability, and a
+visualization-only classification
+\begin{equation}
+q_T\geq0.9\quad\text{and}\quad\pi_1(a_0)_T\geq0.9.
+\end{equation}
+This threshold is not a test assertion and does not define the scientific
+winner.  A regularized interior equilibrium can have good return without
+crossing $0.9$.
+
+At $\beta=0.1$, full has the highest worst-case return ($0.748$) and mean return
+($0.789$), but zero points cross the displayed threshold because its equilibrium
+remains interior.  Reward only crosses at 20/49 points; visitation only at
+33/49.  These counts describe phase behavior, not general superiority.
+
+\begin{figure}[p]\centering
+\begin{minipage}{.48\textwidth}\includegraphics[width=\textwidth]{plots/basin/reward_only.png}\end{minipage}
+\begin{minipage}{.48\textwidth}\includegraphics[width=\textwidth]{plots/basin/detached_conditional.png}\end{minipage}
+\caption{Basin maps for reward-only and detached conditional training.}
+\end{figure}
+\begin{figure}[p]\centering
+\begin{minipage}{.48\textwidth}\includegraphics[width=\textwidth]{plots/basin/complete_weighted.png}\end{minipage}
+\begin{minipage}{.48\textwidth}\includegraphics[width=\textwidth]{plots/basin/uniform_action.png}\end{minipage}
+\caption{Basin maps for complete-weighted and uniform-action training.}
+\end{figure}
+\begin{figure}[p]\centering
+\begin{minipage}{.48\textwidth}\includegraphics[width=\textwidth]{plots/basin/visitation_only.png}\end{minipage}
+\begin{minipage}{.48\textwidth}\includegraphics[width=\textwidth]{plots/basin/full_pooled_fisher.png}\end{minipage}
+\caption{Basin maps for visitation-only and full pooled-Fisher training.}
+\end{figure}
+
+\section{Diagnostics: what every recorded quantity means}
+
+At every update the archive records the complete $\pi_0$, $\pi_1$, $q$,
+$\mu_0$, $\mu_1$, and the following groups.
+
+\subsection{Performance and behavioral coordinates}
+\begin{itemize}
+\item $J$: exact expected return.
+\item $q=\pi_0(a_1)$: probability of reaching $s_1$.
+\item $\pi_1(a_0)$: probability of choosing the good action after reaching it.
+\item $\min_a\pi_s(a)$: direct statewise action-support diagnostic.
+\end{itemize}
+
+\subsection{Statewise and pooled geometry}
+\begin{itemize}
+\item $\lambda_{\min}(F_0)$ and $\lambda_{\min}(F_1)$: weakest conditional
+categorical directions.
+\item $\lambda_{\min}(F_{\pool})$: weakest direction after both conditional
+geometry and dataset frequency are combined.
+\item $\log\det F_0$, $\log\det F_1$, $\log\det F_{\pool}$: statewise and pooled
+log-volume measures.
+\item $B_0$, $B_1$, $B_{\mathrm{weighted}}$, $B_{\mathrm{uniform}}$,
+$B_{\mathrm{visit}}$, $B_{\mathrm{full}}$: the scalar objectives needed to
+audit every decomposition.
+\end{itemize}
+
+\begin{figure}[htbp]\centering
+\includegraphics[width=.82\textwidth]{plots/main/adverse_beta_0p1/statewise_geometry.png}
+\caption{Statewise minima and Fisher eigenvalues.  These identify whether a
+pooled change is caused by conditional degeneration or by reduced visitation.}
+\label{fig:statewise}
+\end{figure}
+
+\begin{figure}[htbp]\centering
+\includegraphics[width=.90\textwidth]{plots/main/adverse_beta_0p1/pooled_statewise_logdet.png}
+\caption{Pooled and statewise log determinants.  The pooled curve alone cannot
+identify which state or weighting mechanism changed.}
+\label{fig:logdet}
+\end{figure}
+
+\begin{figure}[htbp]\centering
+\includegraphics[width=.88\textwidth]{plots/main/adverse_beta_0p1/action_visitation_barriers.png}
+\caption{The normalized full barrier separates exactly into an action term and
+a visitation term.  Plotting both is required to interpret the full update.}
+\label{fig:barriers}
+\end{figure}
+
+\subsection{Gradient scale and direction}
+
+Every method records
+\begin{equation}
+\|\nabla J\|_2,qquad
+\|\beta\nabla B\|_2,qquad
+\cos(\nabla J,\nabla B).
+\end{equation}
+The norm comparison says which component dominates update magnitude.  The
+cosine says whether the regularizer locally supports the reward direction
+($+1$), opposes it ($-1$), or is approximately orthogonal ($0$).  A zero-norm
+case is stored as undefined/NaN, not stabilized with an arbitrary epsilon.
+
+For full, the uniform and visitation components are recorded separately.  For
+complete weighted, the detached and state-weight-derivative components are
+also separated.  These diagnostics make the magnitude-controlled conclusion
+possible.
+
+\section{What the exact results support}
+
+\subsection{Supported statements}
+
+\begin{itemize}
+\item The detached transition-pooled conditional surrogate directly protects
+each state's categorical action geometry in proportion to that state's
+frequency in the rollout dataset.
+\item Consequently, its direct protection of rarely visited states is
+proportionally weaker.
+\item The complete derivative of the transition-pooled-weighted scalar
+objective additionally contains derivatives of the policy-dependent state
+weights.
+\item The full pooled-Fisher log determinant contains explicit visitation
+pressure in addition to the fixed-state conditional action barrier.
+\item In this MDP and adverse initialization, combining these directions
+improves recovery at the declared same $\beta$.
+\item The same barrier biases the solution away from the reward-optimal
+deterministic policy, agreeing with the exploration/bias trade-off emphasized
+by Cesani et al. \cite[Sec.~6.1 and App.~E.2]{cesani2026}.
+\item The magnitude-controlled experiment shows that scale explains part of
+the same-$\beta$ difference; the component trajectories show that direction
+also differs.
+\end{itemize}
+
+\subsection{Claims this experiment does not support}
+
+It does not establish that:
+\begin{itemize}
+\item the detached conditional surrogate equals a global neural Fisher log
+determinant;
+\item a larger determinant guarantees better conditioning or return;
+\item improved return proves Fisher geometry caused the improvement;
+\item the six objectives should share an optimal numerical $\beta$;
+\item this two-state result transfers directly to shared neural parameters;
+\item the empirical finite-batch Fisher is interchangeable with the population
+Fisher or the Hessian \cite{Kunstner2019}.
+\end{itemize}
+
+The exact result is a mechanism isolation: it shows which derivative terms
+exist and how they move this controlled MDP.
+
+\section{Artifacts and exact reconstruction procedure}
+
+From the repository root, first verify the mathematics:
+\begin{center}\footnotesize\ttfamily
+python -m exploration.tabular\_mdp.verify
+\end{center}
+Then run or resume the complete deterministic suite:
+\begin{center}\footnotesize\ttfamily
+python -m exploration.tabular\_mdp.run\_experiment\\
+python -m exploration.tabular\_mdp.run\_experiment --resume
+\end{center}
+
+The output root is
+\path{exploration/results/tabular_mdp/two_step_trap/}.  Its main objects are:
+\begin{itemize}
+\item \texttt{config.json}: complete, versioned experiment declaration;
+\item \texttt{verification.json}: residuals and pass/fail decisions;
+\item \texttt{magnitude\_matched\_betas.json}: computed secondary coefficients;
+\item \texttt{archives/}: 80 compressed exact trajectory units;
+\item \texttt{summary.csv} and \texttt{run\_status.csv}: endpoint and finite
+status tables;
+\item \texttt{plots/}: 97 figures covering main, magnitude, robustness, and
+basin analyses.
+\end{itemize}
+The output manifest is checked before resume.  A nonempty incompatible output
+directory is rejected rather than overwritten.
+
+\section{Decision gate and next experiment}
+
+The next step should retain the same two-state MDP but sample trajectories.
+It should compare population quantities against finite batches and measure:
+\begin{itemize}
+\item bias and variance of the sampled gradients and pooled Fisher;
+\item the random-denominator effect in Equation~\eqref{eq:ratio-estimator};
+\item the frequency of batches containing zero $s_1$ transitions;
+\item how those empty batches weaken the sampled-state conditional barrier;
+\item whether increasing batch size approaches the exact Step 3 dynamics.
+\end{itemize}
+
+Only afterward should the work move to shared-parameter categorical neural
+policies such as CartPole and Acrobot.  The practical method should be called
+an \emph{on-policy sampled-state conditional categorical log barrier}, not the
+global neural Fisher log determinant.  Continuous Gaussian policies remain a
+separate extension.
+
+\section{Source-reading guide}
+
+For verification beyond this document:
+\begin{center}\small
+\begin{tabularx}{\textwidth}{lX}
+\toprule
+Question & Recommended source location\\ \midrule
+Why start with MAB? & Cesani et al., Sections 1--3.\\
+Why is the categorical barrier a Fisher log determinant? & Cesani et al.,
+Section 4 and Appendix B.3.2.\\
+What update does LB-SGB actually use? & Cesani et al., Section 5 and Appendix
+B.4, especially the gradient $\mathbf1-K\pi$.\\
+Where is the exploration/bias trade-off? & Cesani et al., Section 6.1 and
+Appendix E.2/E.5.\\
+Where is the warning about general RL? & Cesani et al., Section 8.\\
+Why does the Fisher define a natural policy metric? & Kakade, Sections 2--3;
+Amari's original natural-gradient article.\\
+Why is Equation~\eqref{eq:reinforce} a policy gradient? & Williams's REINFORCE
+paper and Sutton et al.'s policy-gradient theorem.\\
+Why distinguish empirical and population Fisher? & Kunstner et al., especially
+Sections 2--4.\\ \bottomrule
+\end{tabularx}
+\end{center}
+
+\begin{sloppypar}
+\begin{thebibliography}{9}
+
+\bibitem{cesani2026}
+L. Cesani, M. Papini, and M. Restelli,
+``How Log-Barrier Helps Exploration in Policy Optimization,''
+arXiv:2603.15001v2, 2026.
+\url{https://arxiv.org/html/2603.15001v2}
+
+\bibitem{Williams1992}
+R. J. Williams,
+``Simple Statistical Gradient-Following Algorithms for Connectionist
+Reinforcement Learning,''
+\emph{Machine Learning}, 8, pp. 229--256, 1992.
+\url{https://doi.org/10.1007/BF00992696}
+
+\bibitem{SuttonMcAllester2000}
+R. S. Sutton, D. McAllester, S. Singh, and Y. Mansour,
+``Policy Gradient Methods for Reinforcement Learning with Function
+Approximation,'' \emph{NeurIPS 12}, 2000.
+\href{https://papers.nips.cc/paper/1999/hash/464d828b85b0bed98e80ade0a5c43b0f-Abstract.html}{Official NeurIPS proceedings page.}
+
+\bibitem{Kakade2001}
+S. Kakade,
+``A Natural Policy Gradient,'' \emph{NeurIPS 14}, 2001.
+\href{https://papers.nips.cc/paper/2001/hash/4b86abe48d358ecf194c56c69108433e-Abstract.html}{Official NeurIPS proceedings page.}
+
+\bibitem{Amari1998}
+S.-i. Amari,
+``Natural Gradient Works Efficiently in Learning,''
+\emph{Neural Computation}, 10(2), pp. 251--276, 1998.
+\url{https://doi.org/10.1162/089976698300017746}
+
+\bibitem{Kunstner2019}
+F. Kunstner, P. Hennig, and L. Balles,
+``Limitations of the Empirical Fisher Approximation for Natural Gradient
+Descent,'' \emph{NeurIPS 32}, 2019.
+\href{https://proceedings.neurips.cc/paper/2019/hash/46a558d97954d0692411c861cf78ef79-Abstract.html}{Official NeurIPS proceedings page.}
+
+\bibitem{agarwal2020}
+A. Agarwal, M. Henaff, S. Kakade, and W. Sun,
+``PC-PG: Policy Cover Directed Exploration for Provable Policy Gradient
+Learning,'' \emph{NeurIPS 33}, 2020.
+\href{https://papers.nips.cc/paper/2020/hash/9b3a9fb4db30fc6594ec3990cbc09932-Abstract.html}{Official NeurIPS proceedings page.}
+
+\end{thebibliography}
+\end{sloppypar}
+
+\end{document}
