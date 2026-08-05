@@ -1,0 +1,49 @@
+{
+  "actual_optimizer_updates": 1000,
+  "actual_training_episodes": 8000,
+  "budget_unit": "complete_training_episodes_and_optimizer_updates",
+  "declared_environment_step_budget": null,
+  "declared_optimizer_updates": 1000,
+  "declared_training_episodes": 8000,
+  "environment": "Acrobot-v1",
+  "final": {
+    "barrier_active": false,
+    "barrier_value": -3.4928624629974365,
+    "beta": 0.0,
+    "deterministic_return": -82.03125,
+    "deterministic_return_standard_deviation": 15.224098839795772,
+    "deterministic_termination_rate": 1.0,
+    "entropy": 0.18423710763454437,
+    "entropy_bonus_active": false,
+    "entropy_coefficient": 0.0,
+    "environment": "Acrobot-v1",
+    "environment_steps": 1268357,
+    "episode_length": 83.03125,
+    "global_min_probability": 0.0003015539259649813,
+    "mean_min_probability": 0.013776317238807678,
+    "method": "gpomdp_entropy_handoff",
+    "seed": 1079,
+    "stochastic_return": -110.4375,
+    "stochastic_return_standard_deviation": 89.05161153021899,
+    "stochastic_termination_rate": 0.96875,
+    "update": 1000
+  },
+  "finite": true,
+  "initial_weight_identifier": "73e61f49f66b90cc1c9182f3f859a2ad6f29c8e03d245fd82e568edc0c222186",
+  "learning_rate": 0.003,
+  "method": "gpomdp_entropy_handoff",
+  "optimizer": "Adam",
+  "policy_architecture": [
+    8,
+    8
+  ],
+  "return_convention": {
+    "centered": true,
+    "gamma": 0.99,
+    "normalized": false,
+    "trajectory_outer_mean": true
+  },
+  "schema_version": 1,
+  "seed": 1079,
+  "total_environment_steps": 1268357
+}

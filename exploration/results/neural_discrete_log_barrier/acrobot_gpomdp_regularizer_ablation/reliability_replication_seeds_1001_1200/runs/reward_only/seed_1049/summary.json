@@ -1,0 +1,47 @@
+{
+  "actual_optimizer_updates": 1000,
+  "actual_training_episodes": 8000,
+  "budget_unit": "complete_training_episodes_and_optimizer_updates",
+  "declared_environment_step_budget": null,
+  "declared_optimizer_updates": 1000,
+  "declared_training_episodes": 8000,
+  "environment": "Acrobot-v1",
+  "final": {
+    "barrier_active": false,
+    "barrier_value": -3.0763638019561768,
+    "beta": 0.0,
+    "deterministic_return": -83.96875,
+    "deterministic_return_standard_deviation": 13.167615148905188,
+    "deterministic_termination_rate": 1.0,
+    "entropy": 0.20807990431785583,
+    "environment": "Acrobot-v1",
+    "environment_steps": 929172,
+    "episode_length": 84.96875,
+    "global_min_probability": 0.0007409317186102271,
+    "mean_min_probability": 0.01711854338645935,
+    "method": "gpomdp_reward_only",
+    "seed": 1049,
+    "stochastic_return": -85.71875,
+    "stochastic_return_standard_deviation": 24.547826097824473,
+    "stochastic_termination_rate": 1.0,
+    "update": 1000
+  },
+  "finite": true,
+  "initial_weight_identifier": "a5b51f813f2faf129d2e193cc56489bb3d4bbc8234ef3f8dae481346bf19cede",
+  "learning_rate": 0.003,
+  "method": "gpomdp_reward_only",
+  "optimizer": "Adam",
+  "policy_architecture": [
+    8,
+    8
+  ],
+  "return_convention": {
+    "centered": true,
+    "gamma": 0.99,
+    "normalized": false,
+    "trajectory_outer_mean": true
+  },
+  "schema_version": 1,
+  "seed": 1049,
+  "total_environment_steps": 929172
+}

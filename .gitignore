@@ -1,8 +1,25 @@
 *.pyc
-*.png
-*.mp4
-*.npy
-*.pt
-
+!report/figures/*.png
+fisher_analysis/
 .venv/
 __pycache__/
+
+# Per-task shards of the parallel sampled factorial: intermediate files that the
+# combined CSVs already contain, and re-derivable by rerunning the driver.
+exploration/results/**/shards/
+
+# Per-update traces of the sampled factorial. These are the bulk of a run (320 MB
+# of checkpoints at 2000 updates, past GitHub's 100 MB per-file limit) and are not
+# needed to reproduce any reported number: sampled_endpoints.csv regenerates
+# sampled_method_summaries.csv and sampled_paired_differences.csv byte-identically.
+# Rerun run_sampled_damped.py to recover the traces when a diagnostic needs them.
+exploration/results/**/sampled_checkpoints.csv
+exploration/results/**/sampled_missing_state_audit.csv
+
+# The budget sweep's trace, excluded for the same reason under a different name:
+# 26 MB of per-run rows, of which only the handoff checkpoint is ever read.
+# budget_endpoints.csv alone regenerates budget_contrasts.csv and every column of
+# budget_summaries.csv except pi1_good_at_handoff, which needs the trace; both
+# committed CSVs already hold the derived values. Rerun budget_sweep.py to
+# recover it.
+exploration/results/**/budget_checkpoints.csv

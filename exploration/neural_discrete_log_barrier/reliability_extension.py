@@ -23,8 +23,8 @@ from .training import (
 )
 
 
-BASE_SEEDS = tuple(range(501, 521))
-EXTENSION_SEEDS = tuple(range(521, 561))
+BASE_SEEDS = tuple(range(501, 561))
+EXTENSION_SEEDS = tuple(range(561, 701))
 ALL_SEEDS = BASE_SEEDS + EXTENSION_SEEDS
 EXTENSION_METHODS = ("reward_only", "logbarrier_handoff_h25")
 HANDOFF_UPDATE = 250

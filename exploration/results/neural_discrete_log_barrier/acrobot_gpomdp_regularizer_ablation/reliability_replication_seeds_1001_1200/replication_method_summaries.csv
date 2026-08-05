@@ -1,0 +1,3 @@
+run_label,seed_count,failures,failure_rate,failure_rate_wilson95_low,failure_rate_wilson95_high,mean_final_stochastic_return,mean_environment_step_return_auc
+logbarrier_handoff_h25,200,6,0.03,0.013820314340111346,0.06389429245451925,-101.3371875,-270.8354113157937
+reward_only,200,24,0.12,0.08197992706375512,0.17234252098296743,-136.2821875,-255.12848867364062

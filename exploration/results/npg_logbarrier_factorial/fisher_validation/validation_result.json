@@ -1,0 +1,17 @@
+{
+  "categorical_exact_relative_frobenius_error": 2.329721787977569e-16,
+  "clipped_actions_used_for_likelihood": false,
+  "dtype": "float64",
+  "gaussian_exact_relative_frobenius_error": 2.0747041561577508e-16,
+  "passed": true,
+  "policy_parameters_unchanged": true,
+  "raw_gaussian_actions_used": true,
+  "sample_counts": [
+    1,
+    4,
+    16,
+    64,
+    256
+  ],
+  "schema_version": 1
+}

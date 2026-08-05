@@ -1,0 +1,68 @@
+{
+  "fisher_rank_is_primary_endpoint": false,
+  "historical_archives_overwritten": false,
+  "hypotheses_are_test_assertions": false,
+  "schema_version": 1,
+  "scientific_question": "Does temporary categorical support protection remain useful under natural preconditioning?",
+  "stages": {
+    "acrobot_confirmatory": {
+      "complete": true,
+      "endpoint_rows": 120,
+      "failure_rows": 4,
+      "historical_pg_archives_overwritten": false,
+      "method_summary_rows": 4,
+      "methods": [
+        "gpomdp_reward_only",
+        "gpomdp_logbarrier_handoff",
+        "npg_reward_only",
+        "npg_logbarrier_handoff"
+      ],
+      "paired_rows": 20,
+      "paired_seeds": 30,
+      "pilot_selection": {
+        "coefficient_mode": "same_beta",
+        "gate_passed": true,
+        "same_beta_median_early_natural_ratio": 0.05761341048212511,
+        "schema_version": 1,
+        "selected_beta": 546.4135158976487,
+        "selected_damping": 0.01,
+        "selected_target_kl": 0.001,
+        "selection_uses_final_confirmatory_outcomes": false
+      },
+      "schema_version": 1
+    },
+    "acrobot_pilot": {
+      "coefficient_mode": "same_beta",
+      "gate_passed": true,
+      "same_beta_median_early_natural_ratio": 0.05761341048212511,
+      "schema_version": 1,
+      "selected_beta": 546.4135158976487,
+      "selected_damping": 0.01,
+      "selected_target_kl": 0.001,
+      "selection_uses_final_confirmatory_outcomes": false
+    },
+    "exact_two_state": null,
+    "fisher_diagnostics": null,
+    "fisher_validation": {
+      "categorical_exact_relative_frobenius_error": 2.329721787977569e-16,
+      "clipped_actions_used_for_likelihood": false,
+      "dtype": "float64",
+      "gaussian_exact_relative_frobenius_error": 2.0747041561577508e-16,
+      "passed": true,
+      "policy_parameters_unchanged": true,
+      "raw_gaussian_actions_used": true,
+      "sample_counts": [
+        1,
+        4,
+        16,
+        64,
+        256
+      ],
+      "schema_version": 1
+    },
+    "sampled_two_state_full": null,
+    "sampled_two_state_pilot": null,
+    "sampled_two_state_smoke": null
+  },
+  "vpg_modified": false
+}

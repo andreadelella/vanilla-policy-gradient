@@ -1,0 +1,13 @@
+initialization,n_trajectories,optimizer,paired_seeds,entropy_success_rate,barrier_success_rate,success_rate_difference,entropy_wilson95_low,entropy_wilson95_high,barrier_wilson95_low,barrier_wilson95_high,entropy_wins,barrier_wins,exact_two_sided_mcnemar_p,entropy_final_pi1_good_median,barrier_final_pi1_good_median,entropy_final_return_median,barrier_final_return_median,entropy_completed_horizon_rate,barrier_completed_horizon_rate
+adverse,4,euclidean,100,0.0,0.26,-0.26,0.0,0.037,0.184,0.354,0,26,0.0,0.029,0.8361,0.4778,0.6585,1.0,1.0
+adverse,4,natural,100,0.95,1.0,-0.05,0.888,0.978,0.963,1.0,0,5,0.0625,1.0,1.0,1.0,1.0,0.95,1.0
+adverse,32,euclidean,100,0.0,0.34,-0.34,0.0,0.037,0.255,0.437,0,34,0.0,0.0313,0.9284,0.4779,0.859,1.0,1.0
+adverse,32,natural,100,1.0,1.0,0.0,0.963,1.0,0.963,1.0,0,0,1.0,1.0,1.0,1.0,1.0,1.0,1.0
+adverse,128,euclidean,100,0.0,0.4,-0.4,0.0,0.037,0.309,0.498,0,40,0.0,0.0316,0.9378,0.4779,0.8791,1.0,1.0
+adverse,128,natural,100,1.0,1.0,0.0,0.963,1.0,0.963,1.0,0,0,1.0,1.0,1.0,1.0,1.0,1.0,1.0
+uniform,4,euclidean,100,1.0,1.0,0.0,0.963,1.0,0.963,1.0,0,0,1.0,0.9799,0.9775,0.9614,0.9572,1.0,1.0
+uniform,4,natural,100,0.96,0.95,0.01,0.902,0.984,0.888,0.978,5,4,1.0,1.0,1.0,1.0,1.0,0.96,0.95
+uniform,32,euclidean,100,1.0,1.0,0.0,0.963,1.0,0.963,1.0,0,0,1.0,0.9797,0.9774,0.9613,0.9571,1.0,1.0
+uniform,32,natural,100,1.0,1.0,0.0,0.963,1.0,0.963,1.0,0,0,1.0,1.0,1.0,1.0,1.0,1.0,1.0
+uniform,128,euclidean,100,1.0,1.0,0.0,0.963,1.0,0.963,1.0,0,0,1.0,0.9797,0.9774,0.9613,0.957,1.0,1.0
+uniform,128,natural,100,1.0,1.0,0.0,0.963,1.0,0.963,1.0,0,0,1.0,1.0,1.0,1.0,1.0,1.0,1.0

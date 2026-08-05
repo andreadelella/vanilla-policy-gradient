@@ -17,6 +17,7 @@ from vpg.stats import mean_confidence_interval
 from exploration.sampled_tabular_mdp.estimators import (
     sampled_conditional_gradient,
     sampled_empirical_fisher,
+    sampled_entropy_gradient,
     sampled_reward_gradient,
 )
 from exploration.sampled_tabular_mdp.sampling import sample_batch
@@ -40,6 +41,15 @@ METHODS = (
     "sampled_pg_logbarrier_fixed",
     "sampled_npg_logbarrier_fixed",
 )
+
+# Entropy counterparts of the two handoff arms. Kept out of METHODS so the
+# canonical 36-cell factorial, and every result already on disk from it, is
+# untouched; the entropy grid is a separate stage that opts in explicitly.
+ENTROPY_METHODS = (
+    "sampled_pg_entropy_handoff",
+    "sampled_npg_entropy_handoff",
+)
+ALL_METHODS = METHODS + ENTROPY_METHODS
 INITIALIZATIONS = {
     "uniform": (0.0, 0.0, 0.0, 0.0),
     "adverse": (2.0, -2.0, -2.0, 2.0),
@@ -60,10 +70,15 @@ class SampledFactorialConfig:
     target_kl: float = 1e-3
     record_interval: int = 10
     base_seed: int = 91_000
+    entropy_coefficient: float = 0.0
 
     def validate(self) -> None:
-        if self.method not in METHODS or self.initialization not in INITIALIZATIONS:
+        if self.method not in ALL_METHODS or self.initialization not in INITIALIZATIONS:
             raise ValueError("unknown sampled method or initialization")
+        if self.entropy and self.entropy_coefficient <= 0.0:
+            raise ValueError("entropy methods require a positive coefficient")
+        if not self.entropy and self.entropy_coefficient != 0.0:
+            raise ValueError("entropy_coefficient is only valid for entropy methods")
         if min(self.n_trajectories, self.n_seeds, self.updates, self.record_interval) < 1:
             raise ValueError("counts must be positive")
         if self.alpha <= 0 or self.beta < 0 or self.damping < 0 or self.target_kl <= 0:
@@ -80,6 +95,10 @@ class SampledFactorialConfig:
         return "logbarrier" in self.method
 
     @property
+    def entropy(self) -> bool:
+        return "entropy" in self.method
+
+    @property
     def fixed(self) -> bool:
         return self.method.endswith("_fixed")
 
@@ -87,6 +106,18 @@ class SampledFactorialConfig:
         if not self.barrier:
             return 0.0
         return self.beta if self.fixed or update < self.handoff_update else 0.0
+
+    def entropy_coefficient_at(self, update: int) -> float:
+        """Entropy schedule, on the same clock as :meth:`beta_at`.
+
+        Identical ``update < handoff_update`` boundary, so at a shared
+        ``handoff_update`` both regularizers release together and the arms differ
+        only in the shape of the force applied before it.
+        """
+
+        if not self.entropy:
+            return 0.0
+        return self.entropy_coefficient if self.fixed or update < self.handoff_update else 0.0
 
 
 def _mean_forward_kl(old_phi, new_phi) -> float:
@@ -184,7 +215,16 @@ def run_one(config: SampledFactorialConfig) -> tuple[list[dict], list[dict], lis
             reward = sampled_reward_gradient(phi, batch, center_returns=False, normalize_returns=False)
             barrier = sampled_conditional_gradient(phi, batch) if config.barrier else torch.zeros(4, dtype=DTYPE)
             beta = config.beta_at(update)
-            total = reward + beta * barrier
+            # The regularizer term is exactly one of the two, never both: beta is
+            # zero on entropy arms and the coefficient is zero on barrier arms, so
+            # `total` reduces to the pre-existing expression on every old method.
+            entropy_gradient = (
+                sampled_entropy_gradient(phi, batch)
+                if config.entropy
+                else torch.zeros(4, dtype=DTYPE)
+            )
+            entropy_coefficient = config.entropy_coefficient_at(update)
+            total = reward + beta * barrier + entropy_coefficient * entropy_gradient
             fisher = sampled_empirical_fisher(phi, batch)
             natural_result = None
             if config.natural:
@@ -309,6 +349,18 @@ def _summaries(endpoints: list[dict]) -> tuple[list[dict], list[dict]]:
         ("sampled_npg_logbarrier_handoff", "sampled_pg_logbarrier_handoff", "optimizer_with_barrier"),
         ("sampled_pg_logbarrier_fixed", "sampled_pg_logbarrier_handoff", "fixed_vs_handoff_euclidean"),
         ("sampled_npg_logbarrier_fixed", "sampled_npg_logbarrier_handoff", "fixed_vs_handoff_natural"),
+        ("sampled_pg_entropy_handoff", "sampled_pg_logbarrier_handoff", "entropy_vs_barrier_euclidean"),
+        ("sampled_npg_entropy_handoff", "sampled_npg_logbarrier_handoff", "entropy_vs_barrier_natural"),
+    )
+    # Grids that run a subset of the methods -- the entropy stage runs only its two
+    # arms -- would otherwise divide by zero on the absent groups, and would build
+    # paired comparisons against arms that were never run. Restrict both to what is
+    # actually present, so the canonical full factorial is unaffected.
+    present = {row["method"] for row in endpoints}
+    methods = tuple(method for method in ALL_METHODS if method in present)
+    comparisons = tuple(
+        entry for entry in comparisons
+        if entry[0] in present and entry[1] in present
     )
     continuous = (
         "final_return", "final_q", "final_pi1_good", "zero_s1_batch_fraction"
@@ -321,7 +373,7 @@ def _summaries(endpoints: list[dict]) -> tuple[list[dict], list[dict]]:
         ]
         by_method = {
             method: [row for row in group if row["method"] == method]
-            for method in METHODS
+            for method in methods
         }
         for method, rows in by_method.items():
             successes = sum(bool(row["near_optimal_basin"]) for row in rows)

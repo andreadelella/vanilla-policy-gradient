@@ -30,10 +30,17 @@ from .barrier import categorical_log_barrier
 MethodName = Literal[
     "gpomdp_reward_only",
     "gpomdp_entropy_fixed",
+    "gpomdp_entropy_handoff",
     "gpomdp_logbarrier_fixed",
     "gpomdp_logbarrier_handoff",
     "npg_reward_only",
 ]
+
+# Methods whose regularizer is switched off partway through training. The
+# schedule is identical across them -- active while ``update < handoff_update``,
+# zero afterwards -- so the barrier and entropy handoffs release on the same
+# update and the two are comparable at fixed handoff_fraction.
+HANDOFF_METHODS = ("gpomdp_logbarrier_handoff", "gpomdp_entropy_handoff")
 
 
 @dataclass(frozen=True)
@@ -65,13 +72,13 @@ class NeuralTrainingConfig:
             raise ValueError("updates, batch_steps, and horizon must be positive")
         if not 0.0 <= self.gamma <= 1.0:
             raise ValueError("gamma must be in [0, 1]")
-        if self.method == "gpomdp_logbarrier_handoff":
+        if self.method in HANDOFF_METHODS:
             if self.handoff_fraction is None or not 0.0 < self.handoff_fraction < 1.0:
                 raise ValueError("handoff method requires a fraction in (0, 1)")
-        if self.method != "gpomdp_logbarrier_handoff" and self.handoff_fraction is not None:
-            raise ValueError("handoff_fraction is only valid for the handoff method")
-        if self.method == "gpomdp_entropy_fixed" and self.entropy_coefficient <= 0.0:
-            raise ValueError("entropy method requires a positive coefficient")
+        if self.method not in HANDOFF_METHODS and self.handoff_fraction is not None:
+            raise ValueError("handoff_fraction is only valid for the handoff methods")
+        if "entropy" in self.method and self.entropy_coefficient <= 0.0:
+            raise ValueError("entropy methods require a positive coefficient")
         if "logbarrier" in self.method and self.beta <= 0.0:
             raise ValueError("log-barrier methods require beta > 0")
         if self.collector_mode not in (
@@ -128,6 +135,28 @@ class NeuralTrainingConfig:
         if self.method == "gpomdp_logbarrier_handoff":
             boundary = int(round(self.total_environment_steps * float(self.handoff_fraction)))
             return self.beta if environment_step < boundary else 0.0
+        return 0.0
+
+    def entropy_coefficient_at_update(self, update: int) -> float:
+        """Entropy schedule, mirroring :meth:`beta_at_update` exactly.
+
+        Same ``update < handoff_update`` boundary as the barrier, so at a shared
+        ``handoff_fraction`` both regularizers release on the same update and the
+        arms differ only in which penalty was applied before it.
+        """
+
+        if self.method == "gpomdp_entropy_fixed":
+            return self.entropy_coefficient
+        if self.method == "gpomdp_entropy_handoff":
+            return self.entropy_coefficient if update < int(self.handoff_update) else 0.0
+        return 0.0
+
+    def entropy_coefficient_at_environment_step(self, environment_step: int) -> float:
+        if self.method == "gpomdp_entropy_fixed":
+            return self.entropy_coefficient
+        if self.method == "gpomdp_entropy_handoff":
+            boundary = int(round(self.total_environment_steps * float(self.handoff_fraction)))
+            return self.entropy_coefficient if environment_step < boundary else 0.0
         return 0.0
 
     def to_dict(self) -> dict:
@@ -378,6 +407,14 @@ def _checkpoint_row(
 ) -> dict[str, float | int | bool | str]:
     if environment_steps is None:
         environment_steps = update * config.batch_steps
+    # Derived rather than passed in, so the barrier call sites did not have to
+    # change. Uses the same update/step the caller already resolved beta at, so
+    # the two schedules are reported on a common clock.
+    entropy_coefficient_now = (
+        config.entropy_coefficient_at_environment_step(environment_steps)
+        if config.collector_mode == "complete_episodes"
+        else config.entropy_coefficient_at_update(update)
+    )
     deterministic_metrics, _ = evaluate_policy_detailed(
         config.environment,
         policy,
@@ -417,6 +454,8 @@ def _checkpoint_row(
         "barrier_value": diagnostics.barrier_value,
         "beta": beta,
         "barrier_active": bool(beta > 0.0),
+        "entropy_coefficient": entropy_coefficient_now,
+        "entropy_bonus_active": bool(entropy_coefficient_now > 0.0),
     }
 
 
@@ -541,16 +580,22 @@ def train_policy(config: NeuralTrainingConfig, output_directory: str | Path) -> 
         logits = policy(states.detach())
         barrier, barrier_diagnostics = categorical_log_barrier(logits)
         entropy = policy.distribution(states.detach()).entropy().mean()
+        by_step = config.collector_mode == "complete_episodes"
         beta = (
             config.beta_at_environment_step(environment_steps)
-            if config.collector_mode == "complete_episodes"
+            if by_step
             else config.beta_at_update(update)
+        )
+        entropy_coefficient_now = (
+            config.entropy_coefficient_at_environment_step(environment_steps)
+            if by_step
+            else config.entropy_coefficient_at_update(update)
         )
         regularizer = torch.zeros((), dtype=reward_objective.dtype)
         if "logbarrier" in config.method:
             regularizer = beta * barrier
-        elif config.method == "gpomdp_entropy_fixed":
-            regularizer = config.entropy_coefficient * entropy
+        elif "entropy" in config.method:
+            regularizer = entropy_coefficient_now * entropy
 
         reward_gradient = _flat_gradient(reward_objective, policy, retain_graph=True)
         barrier_gradient = _flat_gradient(barrier, policy, retain_graph=True)

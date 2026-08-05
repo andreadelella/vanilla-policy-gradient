@@ -90,6 +90,43 @@ def sampled_conditional_gradient(phi, batch: SampledBatch) -> torch.Tensor:
     return torch.cat((mu0_hat[..., None] * gb0, mu1_hat[..., None] * gb1), dim=-1)
 
 
+def sampled_entropy_gradient(phi, batch: SampledBatch) -> torch.Tensor:
+    """Pooled-state entropy gradient, weighted exactly as the barrier's is.
+
+    Companion to :func:`sampled_conditional_gradient`. Same random visitation
+    weights ``mu0_hat``/``mu1_hat``, so an entropy arm and a barrier arm differ
+    only in the per-state force and not in how states are counted -- which is what
+    makes the two a controlled comparison of functional form.
+
+    For ``H = -sum_a p_a log p_a`` on reduced logits (the last logit pinned to 0),
+    ``dH/dz_j = -p_j (log p_j + H)`` for the free coordinates ``j``. Written out
+    analytically rather than via autograd to match the closed form the barrier
+    estimator uses; verified against autograd to ~1e-16.
+
+    Note the contrast with the barrier's ``1 - 3 p``, which is monotone in ``p``
+    and keeps pushing as ``p -> 0``. This form carries a factor of ``p``, so it
+    *vanishes* as ``p -> 0``: it abandons an action once that action is nearly
+    dead. That is the whole substantive difference between the two arms.
+    """
+
+    value = as_phi(phi)
+    pi0, pi1 = probabilities_from_reduced_logits(value)
+
+    def per_state(probabilities: torch.Tensor) -> torch.Tensor:
+        entropy = -(probabilities * torch.log(probabilities)).sum(dim=-1, keepdim=True)
+        free = probabilities[..., :2]
+        return -free * (torch.log(free) + entropy)
+
+    n = torch.full_like(batch.m, batch.n_trajectories, dtype=DTYPE)
+    denominator = batch.m.to(DTYPE)
+    mu0_hat = n / denominator
+    mu1_hat = batch.k1.to(DTYPE) / denominator
+    return torch.cat(
+        (mu0_hat[..., None] * per_state(pi0), mu1_hat[..., None] * per_state(pi1)),
+        dim=-1,
+    )
+
+
 def sampled_empirical_fisher(phi, batch: SampledBatch) -> torch.Tensor:
     """Undamped pooled score outer product, exactly matching S^T S / M."""
 

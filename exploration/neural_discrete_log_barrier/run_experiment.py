@@ -12,7 +12,11 @@ from .reliability import (
     run_pilot_divergence_analysis,
     run_reliability_confirmation,
 )
+from .entropy_handoff import run_entropy_handoff, summarize_entropy_handoff
+from .entropy_probe import run_entropy_probe
 from .reliability_extension import run_extension_method, summarize_extension
+from .reliability_replication import run_replication, summarize_replication
+from .replication_geometry import run_geometry_audit
 from .baseline import (
     run_gpomdp_confirmation,
     run_learning_rate_continuation,
@@ -45,6 +49,12 @@ def build_parser() -> argparse.ArgumentParser:
             "acrobot-failure-diagnostics",
             "acrobot-reliability-extension",
             "acrobot-reliability-extension-summary",
+            "acrobot-reliability-replication",
+            "acrobot-reliability-replication-summary",
+            "acrobot-replication-geometry",
+            "acrobot-entropy-probe",
+            "acrobot-entropy-handoff",
+            "acrobot-entropy-handoff-summary",
             "acrobot-pilot",
             "acrobot-confirmatory",
             "fisher",
@@ -113,6 +123,26 @@ def main(argv: list[str] | None = None) -> int:
         )
     elif arguments.stage == "acrobot-reliability-extension-summary":
         result = summarize_extension(root)
+    elif arguments.stage == "acrobot-reliability-replication":
+        result = run_replication(
+            root, parallel_workers=arguments.parallel_workers
+        )
+    elif arguments.stage == "acrobot-reliability-replication-summary":
+        result = summarize_replication(root)
+    elif arguments.stage == "acrobot-entropy-probe":
+        result = run_entropy_probe(
+            root, parallel_workers=arguments.parallel_workers
+        )
+    elif arguments.stage == "acrobot-entropy-handoff":
+        result = run_entropy_handoff(
+            root, parallel_workers=arguments.parallel_workers
+        )
+    elif arguments.stage == "acrobot-entropy-handoff-summary":
+        result = summarize_entropy_handoff(root)
+    elif arguments.stage == "acrobot-replication-geometry":
+        result = run_geometry_audit(
+            root, parallel_workers=arguments.parallel_workers
+        )
     elif arguments.stage == "acrobot-pilot":
         result = acrobot_pilot(root)
     elif arguments.stage == "acrobot-confirmatory":
