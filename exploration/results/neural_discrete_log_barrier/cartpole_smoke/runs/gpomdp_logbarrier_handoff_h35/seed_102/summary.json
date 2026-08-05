@@ -1,0 +1,37 @@
+{
+  "environment": "CartPole-v1",
+  "final": {
+    "barrier_active": false,
+    "barrier_value": -0.701808750629425,
+    "beta": 0.0,
+    "deterministic_return": 71.66666666666667,
+    "entropy": 0.6846330761909485,
+    "environment": "CartPole-v1",
+    "environment_steps": 15360,
+    "episode_length": 71.66666666666667,
+    "global_min_probability": 0.3334940969944,
+    "mean_min_probability": 0.4484685957431793,
+    "method": "gpomdp_logbarrier_handoff",
+    "seed": 102,
+    "stochastic_return": 27.666666666666668,
+    "update": 30
+  },
+  "finite": true,
+  "initial_weight_identifier": "587bf000ab4578debd2aa95a215c1ddb3cbd0a55c5fc7103016090aada9cb174",
+  "learning_rate": 0.003,
+  "method": "gpomdp_logbarrier_handoff",
+  "optimizer": "Adam",
+  "policy_architecture": [
+    8,
+    8
+  ],
+  "return_convention": {
+    "centered": false,
+    "gamma": 0.99,
+    "normalized": false,
+    "trajectory_outer_mean": true
+  },
+  "schema_version": 1,
+  "seed": 102,
+  "total_environment_steps": 15360
+}

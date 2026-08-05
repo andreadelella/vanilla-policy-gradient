@@ -1,0 +1,20 @@
+{
+  "candidate_beta_values": [
+    499.0924729688829,
+    1497.2774189066486,
+    4491.832256719946
+  ],
+  "environment": "Acrobot-v1",
+  "finite": true,
+  "pilot_seeds": [
+    193,
+    194
+  ],
+  "return_centering": false,
+  "return_normalization": false,
+  "selected_beta": 1497.2774189066486,
+  "selected_entropy_coefficient": 1461.7797997333976,
+  "selection_target_ratio": 0.3,
+  "strong_target_ratio": 0.9,
+  "weak_target_ratio": 0.1
+}

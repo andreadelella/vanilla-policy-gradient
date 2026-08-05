@@ -1,0 +1,16 @@
+{
+  "handoff_pilot_means": {
+    "gpomdp_logbarrier_handoff_h25": -458.5555555555556,
+    "gpomdp_logbarrier_handoff_h35": -458.5555555555556
+  },
+  "pilot_seeds": [
+    201,
+    202,
+    203
+  ],
+  "selected_beta": 555.232544854984,
+  "selected_entropy_coefficient": 545.8448197245575,
+  "selected_handoff_fraction": 0.25,
+  "selected_learning_rate": 0.0003,
+  "selection_rule": "prefer 25% unless 35% improves mean final deterministic return by more than 5 points"
+}

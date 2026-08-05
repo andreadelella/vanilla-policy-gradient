@@ -1,0 +1,13 @@
+{
+  "checkpoint_rows": 216630,
+  "complete": true,
+  "endpoint_rows": 720,
+  "missing_state_rows": 216630,
+  "oracle_information_inserted_for_missing_s1": false,
+  "paired_difference_rows": 216,
+  "preset": "pilot",
+  "raw_uncentered_unnormalized_returns": true,
+  "schema_version": 1,
+  "seed_count": 20,
+  "summary_rows": 36
+}

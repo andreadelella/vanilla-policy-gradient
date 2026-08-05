@@ -1,0 +1,4 @@
+run_label,metric,paired_seed_count,mean_difference_method_minus_reward_only,ci95_low,ci95_high
+logbarrier_handoff_h25,final_stochastic_return,60,39.02916666666667,-3.2266919401038976,81.28502527343724
+logbarrier_handoff_h25,environment_step_return_auc,60,1.1159580748513542,-25.39021164999739,27.622127799700095
+logbarrier_handoff_h25,failure,60,-0.1,-0.20311179626897788,0.0031117962689778678

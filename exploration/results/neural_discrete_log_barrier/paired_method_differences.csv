@@ -1,0 +1,13 @@
+method,reference,metric,seed_count,mean_paired_difference,ci95_lower,ci95_upper,median_paired_difference
+gpomdp_entropy_fixed,gpomdp_reward_only,final_deterministic_return,10,0.0,0.0,0.0,0.0
+gpomdp_entropy_fixed,gpomdp_reward_only,final_stochastic_return,10,0.0,0.0,0.0,0.0
+gpomdp_entropy_fixed,gpomdp_reward_only,training_auc,10,0.02766464749374222,-0.08408316566018723,0.13941246064767168,0.0
+gpomdp_logbarrier_fixed,gpomdp_reward_only,final_deterministic_return,10,0.0,0.0,0.0,0.0
+gpomdp_logbarrier_fixed,gpomdp_reward_only,final_stochastic_return,10,0.0,0.0,0.0,0.0
+gpomdp_logbarrier_fixed,gpomdp_reward_only,training_auc,10,0.0023609511428276165,-0.11528440379490755,0.12000630608056277,0.0
+gpomdp_logbarrier_handoff_h25,gpomdp_reward_only,final_deterministic_return,10,0.0,0.0,0.0,0.0
+gpomdp_logbarrier_handoff_h25,gpomdp_reward_only,final_stochastic_return,10,-0.9600000000000023,-3.131670876384007,1.2116708763840025,0.0
+gpomdp_logbarrier_handoff_h25,gpomdp_reward_only,training_auc,10,0.04684642684727578,-0.07953519218577401,0.17322804588032556,0.0
+npg_reward_only,gpomdp_reward_only,final_deterministic_return,10,0.0,0.0,0.0,0.0
+npg_reward_only,gpomdp_reward_only,final_stochastic_return,10,-0.9600000000000023,-3.131670876384007,1.2116708763840025,0.0
+npg_reward_only,gpomdp_reward_only,training_auc,10,9.292076329328614,-0.6054627158053005,19.189615374462527,4.658283726551218

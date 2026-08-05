@@ -1,0 +1,39 @@
+{
+  "batch_steps": 1024,
+  "beta": 555.232544854984,
+  "center_returns": true,
+  "checkpoint_fractions": [
+    0.0,
+    0.1,
+    0.2,
+    0.3,
+    0.4,
+    0.5,
+    0.6,
+    0.7,
+    0.8,
+    0.9,
+    1.0
+  ],
+  "collector_mode": "complete_episodes",
+  "dtype": "float32",
+  "entropy_coefficient": 0.0,
+  "environment": "Acrobot-v1",
+  "evaluation_episodes": 3,
+  "gamma": 0.99,
+  "handoff_fraction": null,
+  "handoff_update": null,
+  "hidden_sizes": [
+    8,
+    8
+  ],
+  "horizon": 500,
+  "learning_rate": 0.0003,
+  "method": "gpomdp_logbarrier_fixed",
+  "normalize_returns": false,
+  "npg_damping": 0.01,
+  "parallel_environments": 8,
+  "seed": 203,
+  "total_environment_steps": 51200,
+  "updates": 50
+}

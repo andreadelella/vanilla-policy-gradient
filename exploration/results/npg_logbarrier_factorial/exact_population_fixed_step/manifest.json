@@ -1,0 +1,56 @@
+{
+  "checkpoint_rows": 5331,
+  "complete": true,
+  "damping_controls": [
+    0.01,
+    0.1
+  ],
+  "defaults": {
+    "alpha": 0.05,
+    "beta": 0.1,
+    "damping": 0.0,
+    "eta": 0.05,
+    "handoff_update": 500,
+    "initialization": "adverse",
+    "method": "exact_npg_reward_only_fixed_step",
+    "record_interval": 10,
+    "updates": 2000
+  },
+  "direction_validation_rows": 132,
+  "endpoint_rows": 26,
+  "experiment": "exact_population_fixed_step",
+  "log_odds_validation_rows": 132,
+  "ordering_asserted_by_tests": false,
+  "primary_damping": 0.0,
+  "primary_endpoints": {
+    "adverse": {
+      "escaped_adverse": true,
+      "final_pi1_good": 1.0,
+      "final_q": 1.0,
+      "final_return": 1.0,
+      "final_v1": 1.0,
+      "finite": true,
+      "first_update_q_above_090": 355,
+      "first_update_q_above_half": 304,
+      "first_update_v1_above_half": 89
+    },
+    "uniform": {
+      "escaped_adverse": false,
+      "final_pi1_good": 1.0,
+      "final_q": 1.0,
+      "final_return": 1.0,
+      "final_v1": 1.0,
+      "finite": true,
+      "first_update_q_above_090": 85,
+      "first_update_q_above_half": 34,
+      "first_update_v1_above_half": 8
+    }
+  },
+  "primary_method": "exact_npg_reward_only_fixed_step",
+  "sampling_used": false,
+  "schema_version": 1,
+  "seeds_used": false,
+  "target_kl_normalization_used": false,
+  "worst_direction_relative_error": 1.7712470001712262e-12,
+  "worst_log_odds_absolute_error": 1.8983425942309395e-13
+}

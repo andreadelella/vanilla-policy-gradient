@@ -1,0 +1,297 @@
+param(
+    [string]$DenseCatalog = "exploration/experiment_results_catalog.csv",
+    [string]$DigestOutput = "exploration/experiment_report_digest.csv",
+    [string]$KeyResultsOutput = "exploration/experiment_key_results.csv"
+)
+
+$ErrorActionPreference = "Stop"
+$root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$dense = Import-Csv (Join-Path $root $DenseCatalog)
+
+function Digest-Row {
+    param(
+        [int]$Order, [string]$Stage, [string]$Family, [string]$Title,
+        [string]$Status, [string]$Question, [string]$Design, [string]$Methods,
+        [string]$KeyResults, [string]$Conclusion, [string]$Limitations,
+        [string]$SourceTex, [string]$DetailedSource, [string]$DenseIds
+    )
+    [pscustomobject][ordered]@{
+        stage_order = $Order
+        stage = $Stage
+        experiment_family = $Family
+        title = $Title
+        status = $Status
+        research_question = $Question
+        design = $Design
+        methods = $Methods
+        key_results = $KeyResults
+        scientific_conclusion = $Conclusion
+        limitations = $Limitations
+        source_tex = $SourceTex
+        detailed_source = $DetailedSource
+        dense_experiment_ids = $DenseIds
+    }
+}
+
+$digest = @(
+    Digest-Row 1 'categorical_identity' 'step1_exact_identity' 'Exact categorical Fisher identity' 'complete' `
+        'Why does a categorical log barrier correspond to Fisher-volume protection?' `
+        'Exact enumeration for K=2,3,10,100 in CPU float64, including a near-boundary policy.' `
+        'Exact categorical action enumeration.' `
+        'All Bartlett, null-direction, reduced determinant, gradient, Hessian, and finite-difference checks passed; the largest documented directional finite-difference error was 2.80e-9 for K=100.' `
+        'For fixed categorical logits, log det(F_reduced)=sum_a log pi(a), and the barrier restores unlikely actions.' `
+        'This is a fixed-input reduced-coordinate identity, not a global neural Fisher determinant.' `
+        'exploration/categorical_bandit_identity.tex' 'exploration/categorical_bandit_exploration.tex' 'step1_exact_identity'
+
+    Digest-Row 2 'categorical_bandit' 'step2_smoke' 'Categorical bandit smoke run' 'complete_non_scientific' `
+        'Does the stochastic bandit pipeline execute deterministically and save valid artifacts?' `
+        'K=10, four runs, 200 updates.' 'SGB; entropy-SGB; NPG; LB-SGB.' `
+        'All required smoke artifacts and finite-run checks completed.' `
+        'The implementation pipeline was ready for scientific presets.' `
+        'Too short and too small for scientific conclusions.' `
+        'exploration/categorical_bandit_exploration.tex' 'exploration/results/categorical_bandit/smoke/summary.csv' 'step2_smoke;step2_smoke_paired'
+
+    Digest-Row 2 'categorical_bandit' 'step2_pilot' 'Categorical bandit pilot grid' 'complete' `
+        'Do the declared algorithms and diagnostics behave plausibly before the full grid?' `
+        'K in {10,100}, alpha in {0.01,0.1}, ten runs, 2500 updates.' `
+        'SGB; entropy-SGB; NPG; LB-SGB.' `
+        'The pilot exposed NPG over-commitment and support loss at larger K or alpha, while the barrier preserved more interior geometry.' `
+        'The pilot justified the full paper-grid and barrier-strength experiments.' `
+        'Only ten runs and one tenth of the paper horizon.' `
+        'exploration/categorical_bandit_exploration.tex' 'exploration/results/categorical_bandit/pilot/summary.csv' 'step2_pilot;step2_pilot_paired'
+
+    Digest-Row 2 'categorical_bandit' 'step2_eta' 'Barrier-strength ablation' 'complete' `
+        'How does barrier strength trade exploration against concentration?' `
+        'K=10, alpha=0.1, T=25000, 100 paired runs; eta in {100,1000,10000} plus SGB.' `
+        'SGB and three LB-SGB strengths.' `
+        'Eta=1000 improved optimal-arm probability over SGB by 0.200, 95% CI [0.098,0.301]. Eta=100 overexplored; eta=10000 resembled unstable SGB. The cumulative-regret difference was unresolved.' `
+        'A medium barrier strength best balanced support preservation and reward concentration in this declared setting.' `
+        'The best eta is environment- and scale-dependent and must not be copied directly to RL.' `
+        'exploration/categorical_bandit_exploration.tex' 'exploration/results/categorical_bandit/eta/summary.csv' 'step2_eta;step2_eta_paired'
+
+    Digest-Row 2 'categorical_bandit' 'step2_paper_grid' 'Full categorical bandit paper-grid reproduction' 'complete' `
+        'Does LB-SGB reproduce the paper mechanism across action count and step size?' `
+        'K in {10,100,1000}, alpha in {0.01,0.1}, T=25000, 100 paired runs per cell; 2400 trajectories.' `
+        'SGB; entropy-SGB; NPG; LB-SGB.' `
+        'At alpha=0.1, optimal-arm probability was SGB/LB-SGB: 0.769/0.955 for K=10, 0.250/0.623 for K=100, and 0.050/0.127 for K=1000. At K=100, LB-SGB had about 93 times the minimum probability and a normalized log-Fisher-volume advantage of 4.622 [4.495,4.749].' `
+        'Support preservation and continued correction were reproduced strongly for K=10 and K=100; K=1000 remained only partially solved.' `
+        'At K=1000 the barrier still selected the wrong modal arm in 82% of runs and incurred more cumulative regret through continued exploration.' `
+        'exploration/categorical_bandit_exploration.tex' 'exploration/results/categorical_bandit/paper/summary.csv' 'step2_paper;step2_paper_paired'
+
+    Digest-Row 3 'exact_tabular_mdp' 'step3_verification' 'Exact two-state mathematical verification' 'complete' `
+        'Are the return, pooled weighting, Fisher decomposition, and six barrier gradients implemented exactly?' `
+        'CPU float64 exact trajectory and action enumeration, autograd cross-checks, and finite differences.' `
+        'Exact analytical formulas versus independent enumeration/autograd.' `
+        'All declared checks passed; representative reward-gradient error was 1.39e-17 and full-barrier finite-difference error was 5.37e-11.' `
+        'The implementation cleanly distinguishes detached conditional, complete weighted, uniform action, visitation, and full pooled-Fisher objectives.' `
+        'Verification establishes algebra and code consistency, not empirical superiority.' `
+        'exploration/tabular_mdp/two_state_geometry.tex' 'exploration/results/tabular_mdp/two_step_trap/verification.json' 'step3_verification;step3_smoke_check'
+
+    Digest-Row 3 'exact_tabular_mdp' 'step3_exact_geometry' 'Six exact objectives in the two-state trap MDP' 'complete' `
+        'What changes when categorical action geometry and policy-dependent state visitation are separated?' `
+        'Alpha=0.05, 2000 exact-gradient updates; beta in {0.01,0.1,0.2}; uniform and adverse starts, plus magnitude, step-size, and basin controls.' `
+        'Reward only; detached conditional; complete weighted; uniform action; visitation only; full pooled Fisher.' `
+        'At adverse start and beta=0.1, final (J,q,p_good) was reward-only (0.491,0.002,0.016), detached conditional (0.401,0.248,0.309), uniform action (0.565,0.533,0.699), visitation only (0.419,0.192,0.017), and full pooled Fisher (0.785,0.830,0.866).' `
+        'Conditional action protection and visitation pressure are distinct directions; combining them improved recovery in this exact declared comparison.' `
+        'The full objective also adds reward-independent visitation bias; disjoint tabular parameters do not transfer directly to shared neural networks.' `
+        'exploration/tabular_mdp/two_state_geometry.tex' 'exploration/results/tabular_mdp/two_step_trap/summary.csv' 'step3_exact_geometry'
+
+    Digest-Row 4 'sampled_tabular_mdp' 'step4_pilot' 'Sampled two-state pilot' 'complete' `
+        'Does the finite-batch implementation reproduce the exact estimator identities and train stably?' `
+        'Twenty seeds, full 2000 updates, and 5000 audit batches.' `
+        'Sampled REINFORCE with five oracle barriers and one practical sampled conditional barrier.' `
+        'The pilot reproduced finite-batch ratio bias, zero-downstream-state batches, and convergence toward the conditional oracle.' `
+        'The full 100-seed estimator audit and training grid was justified.' `
+        'Pilot Monte Carlo precision and seed count are lower than the full preset.' `
+        'exploration/sampled_tabular_mdp/sampled_two_state.tex' 'exploration/results/tabular_mdp/two_step_trap_sampled/pilot/summary.csv' 'step4_training_pilot;step4_training_pilot_paired;step4_estimator_audit_pilot'
+
+    Digest-Row 4 'sampled_tabular_mdp' 'step4_full_audit' 'Finite-batch estimator audit' 'complete' `
+        'How do random transition counts affect state weights, conditional gradients, and the undamped empirical Fisher?' `
+        'Five fixed policies; N in {1,2,4,8,16,32,64,128,256}; exact binomial moments and 50000 Monte Carlo batches per cell.' `
+        'Population targets versus sampled state weights, sampled conditional gradients, reward gradients, and empirical Fishers.' `
+        'For the adverse policy, P(no s1) was 0.938 at N=4 and 0.599 at N=32; at N=32 only 2.388% of empirical Fishers were full rank with a defined ordinary log determinant. Conditional-gradient bias decreased with N.' `
+        'Rare-state batches can remove direct state protection entirely even when the estimator is asymptotically consistent.' `
+        'Undamped empirical log determinants are often undefined; no spectral floor was added.' `
+        'exploration/sampled_tabular_mdp/sampled_two_state.tex' 'exploration/results/tabular_mdp/two_step_trap_sampled/full/audit.csv' 'step4_estimator_audit_full;step4_verification'
+
+    Digest-Row 4 'sampled_tabular_mdp' 'step4_full_training' 'Full sampled two-state training grid' 'complete' `
+        'How does the practical sampled conditional barrier compare with exact regularizer controls during sampled learning?' `
+        'Alpha=0.05, 2000 updates, beta in {0.01,0.1,0.2}, N in {4,32,128}, two starts, 100 paired seeds.' `
+        'Reward only; five exact oracle regularizers; sampled detached conditional barrier.' `
+        'At adverse start, N=32, beta=0.1, sampled conditional reached (J,q,p_good)=(0.400,0.246,0.302), close to its oracle (0.402,0.248,0.311). Their paired return gap shrank from -0.01324 at N=4 to -0.000407 at N=128.' `
+        'The practical sampled estimator approaches the population conditional target as batch size grows but does not reproduce explicit visitation pressure.' `
+        'Return differences do not prove Fisher geometry is causal, and the oracle visitation/full methods are not ordinary neural-rollout estimators.' `
+        'exploration/sampled_tabular_mdp/sampled_two_state.tex' 'exploration/results/tabular_mdp/two_step_trap_sampled/full/summary.csv' 'step4_training_full;step4_training_full_paired'
+
+    Digest-Row 4 'sampled_tabular_handoff' 'step4_handoff' 'Temporary sampled conditional barrier' 'complete' `
+        'After a practical barrier moves the adverse policy out of the safe basin, can reward-only learning finish the task?' `
+        'N=32, alpha=0.05, 4000 updates, 100 paired seeds; sampled barrier beta=0.2 until update 2000 and zero afterward.' `
+        'Reward only; fixed sampled conditional; sampled conditional handoff; full-oracle handoff diagnostic.' `
+        'At adverse start, final return was 0.495 reward-only, 0.619 fixed barrier, 0.979 sampled handoff, and 0.981 full-oracle handoff. The practical handoff ended at q=0.987 and p_good=0.989.' `
+        'Temporary conditional protection can move the policy into a basin where ordinary reward optimization becomes self-sustaining.' `
+        'The exact full-oracle handoff is an upper reference, not the practical candidate algorithm.' `
+        'exploration/sampled_tabular_mdp/sampled_two_state.tex' 'exploration/results/tabular_mdp/two_step_trap_sampled/handoff/full/summary.csv' 'step4_handoff_main;step4_handoff_paired;step4_handoff_change'
+
+    Digest-Row 4 'sampled_tabular_handoff' 'step4_switch_robustness' 'Handoff switch-time robustness' 'complete' `
+        'Was update 2000 accidentally an ideal handoff time?' `
+        'N=32, beta=0.2, 4000 updates, 100 paired seeds; switch in {500,1000,1500,2000,2500}.' `
+        'Five temporary sampled-conditional schedules.' `
+        'At adverse start, switch 500 failed with final J=0.494, while switches 1000,1500,2000,2500 reached J=0.983,0.983,0.979,0.973 respectively.' `
+        'The result is robust across a broad successful switch window but exhibits a transition between updates 500 and 1000.' `
+        'This is a narrow schedule robustness check, not a broad hyperparameter search.' `
+        'exploration/sampled_tabular_mdp/sampled_two_state.tex' 'exploration/results/tabular_mdp/two_step_trap_sampled/handoff/robustness/final_endpoints.csv' 'step4_switch_time_sweep;step4_switch_time_paired'
+
+    Digest-Row 4 'sampled_tabular_handoff' 'step4_handoff_posthoc' 'Focused handoff-threshold post-hoc analysis' 'complete' `
+        'What condition is present at successful switches 1000/1500 but absent at failed switch 500?' `
+        'Archive-based policy reconstruction at switch, +50,+100,+250,+500, and final checkpoints, with reward-vector-field counterfactual continuations.' `
+        'Switch schedules 500,1000,1500, with 2000/2500 endpoint controls.' `
+        'Behavioral quantities and the exact reward-only vector field changed across the transition; improved Fisher geometry accompanied it but was not a unique explanatory threshold.' `
+        'The most defensible explanation is a behavioral/reward-gradient feedback threshold that makes post-handoff learning self-sustaining.' `
+        'Post-hoc checkpoint associations cannot establish geometric causality.' `
+        'exploration/sampled_tabular_mdp/sampled_two_state.tex' 'exploration/results/tabular_mdp/two_step_trap_sampled/handoff_posthoc/posthoc_manifest.json' 'step4_posthoc_switch_summary;step4_posthoc_endpoint_summary;step4_posthoc_counterfactual_summary'
+
+    Digest-Row 5 'neural_discrete' 'neural_smoke_and_original_pilot' 'Neural discrete smoke and original Acrobot pilot' 'complete_superseded' `
+        'Does the neural conditional barrier execute, and does the original Acrobot setup learn at all?' `
+        'CartPole smoke followed by a short Acrobot learning-rate pilot.' `
+        'Reward-only and regularized neural categorical policies.' `
+        'CartPole completed finitely; all original Acrobot candidates ended at -500.' `
+        'The barrier pipeline worked, but Acrobot required a learning-capable baseline before any comparison.' `
+        'The Acrobot pilot is superseded and cannot be used as evidence against GPOMDP or the barrier.' `
+        'exploration/neural_discrete_log_barrier/acrobot_reliability_extension.tex' 'exploration/results/neural_discrete_log_barrier/cartpole_smoke/smoke_result.json' 'neural_cartpole_smoke;neural_original_acrobot_pilot'
+
+    Digest-Row 5 'neural_discrete' 'neural_initial_confirmatory' 'Initial Acrobot negative confirmatory gate' 'complete_superseded' `
+        'Did the first fixed-budget neural comparison demonstrate a barrier effect?' `
+        'Ten seeds and the original interaction-budget collector, with GPOMDP variants and NPG.' `
+        'Reward-only; fixed entropy; fixed barrier; handoff barrier; NPG.' `
+        'Every method and seed ended at deterministic return -500; fixed-reference spectra differed little across GPOMDP variants.' `
+        'No barrier conclusion was possible because reward-only GPOMDP also failed; the stage motivated baseline repair.' `
+        'Superseded protocol; do not combine its endpoints with the later complete-episode experiments.' `
+        'exploration/neural_discrete_log_barrier/acrobot_reliability_extension.tex' 'exploration/results/neural_discrete_log_barrier/report.md' 'neural_initial_confirmatory_failures;neural_initial_confirmatory_paired;neural_initial_fisher_analysis'
+
+    Digest-Row 5 'neural_discrete' 'neural_baseline_selection' 'Acrobot GPOMDP learning-rate selection' 'complete' `
+        'Which learning rate makes reward-only GPOMDP reliably learn before introducing a regularizer?' `
+        'Rates 1e-4 through 1e-2 screened for 300 updates; best two continued to 1000 updates.' `
+        'Reward-only GPOMDP only.' `
+        'Learning rate 0.003 was selected for confirmation under complete-episode updates.' `
+        'This isolates regularizer effects from a broken reward-only baseline.' `
+        'Small pilot cohorts select a configuration; they are not method-effect estimates.' `
+        'exploration/neural_discrete_log_barrier/acrobot_reliability_extension.tex' 'exploration/results/neural_discrete_log_barrier/acrobot_gpomdp_baseline/lr_continuation_1000_updates/continuation_result.json' 'neural_lr_screen;neural_lr_continuation'
+
+    Digest-Row 5 'neural_discrete' 'neural_baseline_confirmation' 'Five-seed GPOMDP baseline gate' 'complete_passed' `
+        'Does the selected reward-only configuration learn Acrobot reliably enough to authorize ablations?' `
+        'Five new seeds, lr=0.003, 1000 updates, 8000 complete episodes per seed.' `
+        'Reward-only GPOMDP.' `
+        'Median final stochastic return -86.656; termination rate 1.0; mean improvement 409.213 [394.822,423.603]; all five seeds improved by at least 100.' `
+        'The predeclared baseline gate passed and regularizer experiments became interpretable.' `
+        'Five seeds establish viability, not a precise catastrophic-failure rate.' `
+        'exploration/neural_discrete_log_barrier/acrobot_reliability_extension.tex' 'exploration/results/neural_discrete_log_barrier/acrobot_gpomdp_baseline/gpomdp_confirmation_1000_updates/confirmation_result.json' 'neural_gpomdp_baseline_confirmation'
+
+    Digest-Row 5 'neural_discrete' 'neural_calibration' 'Independent regularizer coefficient calibration' 'complete' `
+        'How can entropy and barrier scales be chosen without outcome tuning?' `
+        'Five disjoint early-policy seeds; match median scaled regularizer norm to 0.3 times reward-gradient norm.' `
+        'Conditional log barrier and entropy.' `
+        'Selected barrier beta=546.4135159 and entropy coefficient=588.8195483 without inspecting final reward outcomes.' `
+        'Initial gradient-norm matching provides a declared scale control for the ablation.' `
+        'It equalizes initial norm, not direction, objective meaning, or later gradient magnitude.' `
+        'exploration/neural_discrete_log_barrier/acrobot_reliability_extension.tex' 'exploration/results/neural_discrete_log_barrier/acrobot_gpomdp_regularizer_ablation/calibration/early_gradient_audit.csv' 'neural_regularizer_calibration'
+
+    Digest-Row 5 'neural_discrete' 'neural_five_seed_ablation' 'Five-seed neural regularizer ablation' 'complete' `
+        'Do permanent entropy/barrier controls or a temporary barrier improve on the validated baseline?' `
+        'Five paired seeds, lr=0.003, 1000 updates; handoff after 25%.' `
+        'Reward only; fixed entropy; fixed barrier; 25% barrier handoff.' `
+        'Mean final stochastic returns were -168.431, -246.844, -251.319, and -88.006 respectively. Reward-only failed on 1/5; handoff on 0/5.' `
+        'The temporary schedule was promising, while permanent regularization imposed persistent exploration cost.' `
+        'Five-seed paired intervals were wide; this was a mechanism pilot.' `
+        'exploration/neural_discrete_log_barrier/acrobot_reliability_extension.tex' 'exploration/results/neural_discrete_log_barrier/acrobot_gpomdp_regularizer_ablation/five_seed_1000_updates/ablation_result.json' 'neural_five_seed_ablation;neural_five_seed_ablation_paired'
+
+    Digest-Row 5 'neural_discrete' 'neural_seed402_audit' 'Seed 402 paired divergence audit' 'complete' `
+        'Did the barrier prevent a collapse unique to one failed reward-only seed?' `
+        'Every stored checkpoint for seed 402 and successful control seed 403; on-policy and fixed-reference Fishers.' `
+        'Reward only versus 25% barrier handoff.' `
+        'The methods diverged in behavior and action support, but no single Fisher-rank or determinant threshold explained success.' `
+        'The audit supported an optimization-basin interpretation and motivated a larger reliability cohort.' `
+        'Outcome-selected case study; not a population causal estimate.' `
+        'exploration/neural_discrete_log_barrier/acrobot_reliability_extension.tex' 'exploration/results/neural_discrete_log_barrier/acrobot_gpomdp_regularizer_ablation/seed_402_divergence_audit/checkpoint_audit.csv' 'neural_seed402_divergence_audit'
+
+    Digest-Row 5 'neural_discrete' 'neural_reliability_20' 'Twenty-seed reliability confirmation' 'complete' `
+        'Does the temporary barrier reduce seed-level catastrophic failures beyond the five-seed pilot?' `
+        'Twenty paired primary seeds; fixed controls on ten seeds; 1000 updates and 25% handoff.' `
+        'Reward only; handoff primary; fixed entropy and fixed barrier secondary.' `
+        'Reward-only failed 2/20 and handoff 0/20. Mean final return was -129.366 versus -89.433; paired difference +39.933 [-20.221,100.087].' `
+        'The failure pattern persisted descriptively and justified the frozen extension to 60 pairs.' `
+        'The paired return interval included zero and failure events were still few.' `
+        'exploration/neural_discrete_log_barrier/acrobot_reliability_extension.tex' 'exploration/results/neural_discrete_log_barrier/acrobot_gpomdp_regularizer_ablation/reliability_confirmation_20_seeds/method_summaries.csv' 'neural_reliability_20;neural_reliability_20_paired'
+
+    Digest-Row 5 'neural_discrete' 'neural_reliability_60' 'Final 60-pair Acrobot reliability extension' 'complete' `
+        'Under the frozen protocol, does a 25% temporary barrier reduce catastrophic failure?' `
+        'Sixty paired seeds, lr=0.003, 1000 updates, 8000 complete episodes, centered unnormalized returns, beta=546.414 until update 250.' `
+        'Reward-only GPOMDP versus temporary conditional categorical log barrier.' `
+        'Failures were 8/60 (13.33%, Wilson [6.91%,24.17%]) versus 2/60 (3.33%, [0.92%,11.36%]). Paired failure difference -0.100 [-0.203,0.003]; exact McNemar p=0.109375. Final-return difference was +39.029 [-3.227,81.285]; AUC difference +1.116 [-25.390,27.622].' `
+        'The handoff produced a large descriptive reliability improvement, but the primary paired inference remained statistically unresolved and there was no general AUC benefit.' `
+        'The result is promising rather than conclusive; two reward-only successes were harmed by handoff.' `
+        'exploration/neural_discrete_log_barrier/acrobot_reliability_extension.tex' 'exploration/results/neural_discrete_log_barrier/acrobot_gpomdp_regularizer_ablation/reliability_extension_60_total/combined_result.json' 'neural_reliability_60;neural_reliability_60_paired;neural_reliability_60_mcnemar;neural_reliability_60_seed_endpoints'
+
+    Digest-Row 5 'neural_discrete' 'neural_discordant_mechanism' 'Final discordant-seed mechanism analysis' 'complete' `
+        'What differs in seeds where reward-only and handoff disagree on catastrophic failure?' `
+        'All ten discordant seeds, both methods, reference-bank action distributions, margins, disagreement states, visitation frequencies, and return milestones.' `
+        'Eight reward-failed/handoff-succeeded pairs and two reward-succeeded/handoff-failed pairs.' `
+        'Handoff rescued seeds 512,517,532,538,542,550,557,560 but harmed 545 and 556. Seed 556 showed harmful suppression of useful specialization; seed 545 showed a late reward-only escape.' `
+        'Temporary support protection changes the optimization basin and can either rescue exploration or delay useful specialization.' `
+        'Selected on outcome discordance; descriptive and noncausal.' `
+        'exploration/neural_discrete_log_barrier/acrobot_reliability_extension.tex' 'exploration/results/neural_discrete_log_barrier/acrobot_gpomdp_regularizer_ablation/reliability_extension_60_total/discordant_seed_diagnostics.csv' 'neural_reliability_60_discordant_diagnostics'
+
+    Digest-Row 5 'neural_discrete' 'neural_quarantine' 'Legacy fixed-segment collector quarantine' 'quarantined_invalid_for_science' `
+        'Why are some early Acrobot artifacts excluded?' `
+        'Legacy fixed-length segments that prematurely truncated episodes.' `
+        'Early neural pilot methods.' `
+        'The implementation flaw was documented and the artifacts were retained only for auditability.' `
+        'No outcome from this collector enters the scientific synthesis.' `
+        'Invalid for scientific comparison.' `
+        '' 'exploration/results/neural_discrete_log_barrier/acrobot_pilot_fixed_segment_quarantine/run_summaries.json' 'neural_legacy_fixed_segment_pilot'
+)
+
+# Curated scalar evidence. The dense catalog remains the audit trail.
+$selected = [System.Collections.Generic.List[object]]::new()
+function Keep($Row, [string]$Reason) {
+    $copy = [ordered]@{}
+    foreach ($property in $Row.PSObject.Properties) { $copy[$property.Name] = $property.Value }
+    $copy['selection_reason'] = $Reason
+    $selected.Add([pscustomobject]$copy) | Out-Null
+}
+
+foreach ($r in $dense) {
+    $keep = $false
+    $reason = ''
+    switch ($r.experiment_id) {
+        'step1_exact_identity' { $keep=$true; $reason='Exact identity evidence' }
+        'step2_eta' { if ($r.metric -in @('optimal_arm_probability','cumulative_pseudo_regret','minimum_probability','normalized_log_fisher_volume')) {$keep=$true;$reason='Barrier-strength trade-off endpoint'} }
+        'step2_eta_paired' { if ($r.metric -in @('optimal_arm_probability','cumulative_pseudo_regret','minimum_probability','normalized_log_fisher_volume')) {$keep=$true;$reason='Paired barrier-strength comparison'} }
+        'step2_paper' { if ($r.metric -eq 'optimal_arm_probability') {$keep=$true;$reason='Full-grid primary performance endpoint'} }
+        'step2_paper_paired' { if (($r.comparison -eq 'sgb') -and ($r.metric -in @('optimal_arm_probability','minimum_probability','normalized_log_fisher_volume','cumulative_pseudo_regret'))) {$keep=$true;$reason='Primary LB-SGB versus SGB paired comparison'} }
+        'step3_verification' { if ($r.metric -in @('path_probability_error','reward_gradient_error','pooled_fisher_error','full_fd_error','detached_weighted_difference','minimum_eigenvalue')) {$keep=$true; $reason='Representative exact implementation residual'} }
+        'step3_exact_geometry' { if (($r.configuration_json -match '"experiment":"main"') -and (($r.configuration_json -match '"label":"adverse"') -or ($r.configuration_json -match '"label":"adverse_beta_0.1"')) -and ($r.metric -in @('final_return','final_q','final_p_good'))) {$keep=$true;$reason='Central adverse-start exact endpoint'} }
+        'step4_estimator_audit_full' { if (($r.configuration_json -match '"policy":"adverse"') -and ($r.configuration_json -match '"n":"(4|32|128)"') -and ($r.metric -in @('zero_s1_probability','conditional_exact_bias_norm','fisher_full_rank_fraction','fisher_logdet_defined_fraction'))) {$keep=$true;$reason='Rare-state finite-batch mechanism'} }
+        'step4_training_full' { if (($r.initialization -eq 'adverse') -and ($r.configuration_json -match '"experiment":"main"') -and ($r.configuration_json -match '"n":"32"') -and (($r.configuration_json -match '"beta":"0.1"') -or ($r.method -eq 'reward_only')) -and ($r.metric -in @('population_return','q','pi1_a0'))) {$keep=$true;$reason='Central sampled-training endpoint'} }
+        'step4_training_full_paired' { if (($r.initialization -eq 'adverse') -and ($r.method -eq 'detached_conditional_sampled') -and ($r.metric -eq 'population_return') -and ($r.configuration_json -match '"beta":"0.1"')) {$keep=$true;$reason='Sampled-to-oracle convergence'} }
+        'step4_handoff_main' { if (($r.initialization -eq 'adverse') -and ($r.metric -in @('population_return','q','pi1_a0'))) {$keep=$true;$reason='Temporary-barrier endpoint'} }
+        'step4_handoff_paired' { if (($r.initialization -eq 'adverse') -and ($r.metric -eq 'population_return')) {$keep=$true;$reason='Paired temporary-barrier comparison'} }
+        'step4_switch_time_sweep' { if ($r.initialization -eq 'adverse') {$keep=$true;$reason='Switch-time robustness endpoint'} }
+        'neural_lr_continuation' { if ($r.metric -in @('mean_final_stochastic_return','median_final_stochastic_return','mean_final_termination_rate','rank')) {$keep=$true;$reason='Learning-rate selection'} }
+        'neural_gpomdp_baseline_confirmation' { if ($r.metric -in @('final_stochastic_return','stochastic_improvement','final_stochastic_termination_rate')) {$keep=$true;$reason='Baseline-gate seed evidence'} }
+        'neural_five_seed_ablation_paired' { if ($r.metric -in @('final_stochastic_return','stochastic_return_auc')) {$keep=$true;$reason='Exploratory paired ablation'} }
+        'neural_reliability_20' { $keep=$true;$reason='Intermediate reliability endpoint' }
+        'neural_reliability_20_paired' { $keep=$true;$reason='Intermediate paired inference' }
+        'neural_reliability_60' { $keep=$true;$reason='Primary final reliability endpoint' }
+        'neural_reliability_60_paired' { $keep=$true;$reason='Primary final paired inference' }
+        'neural_reliability_60_mcnemar' { $keep=$true;$reason='Exact paired failure inference' }
+    }
+    if ($keep) { Keep $r $reason }
+}
+
+$digestPath = Join-Path $root $DigestOutput
+$keyPath = Join-Path $root $KeyResultsOutput
+$digest | Export-Csv -LiteralPath $digestPath -NoTypeInformation -Encoding utf8
+$selected | Export-Csv -LiteralPath $keyPath -NoTypeInformation -Encoding utf8
+
+Write-Output "Wrote $($digest.Count) digest rows to $DigestOutput"
+Write-Output "Wrote $($selected.Count) key-result rows to $KeyResultsOutput"

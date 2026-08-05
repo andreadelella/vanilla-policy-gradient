@@ -1,0 +1,48 @@
+{
+  "architecture": [
+    8,
+    8
+  ],
+  "center_returns": true,
+  "confirmation_seeds": [
+    211,
+    212,
+    213,
+    214,
+    215
+  ],
+  "continuation_updates": 1000,
+  "entropy_coefficient": 0.0,
+  "environment": "Acrobot-v1",
+  "episodes_per_update": 8,
+  "evaluation_episodes_per_checkpoint": 32,
+  "evaluation_interval_updates": 50,
+  "gamma": 0.99,
+  "gate": {
+    "at_least_four_of_five_improve_by": 100.0,
+    "median_final_stochastic_return_at_least": -300.0,
+    "median_final_stochastic_termination_rate_at_least": 0.8,
+    "paired_improvement_95pct_ci_lower_bound_above": 0.0
+  },
+  "learning_rate_candidates": [
+    0.0001,
+    0.0003,
+    0.001,
+    0.003,
+    0.01
+  ],
+  "method": "GPOMDP / reward-to-go REINFORCE",
+  "normalize_returns": false,
+  "optimizer": "Adam",
+  "reward_reference": {
+    "official_solved_threshold": -100.0,
+    "random_policy_goal_termination_rate": 0.013,
+    "random_policy_mean_1000_episodes": -499.239
+  },
+  "schema_version": 1,
+  "screen_seeds": [
+    191,
+    192
+  ],
+  "screen_updates": 300
+}

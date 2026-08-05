@@ -1,0 +1,6 @@
+seed,learning_rate,finite,actual_optimizer_updates,actual_training_episodes,environment_steps,initial_stochastic_return,final_stochastic_return,stochastic_improvement,final_deterministic_return,final_stochastic_termination_rate,stochastic_return_auc
+211,0.003,True,1000,8000,1978604,-500.0,-86.21875,413.78125,-89.75,1.0,-247.18046875
+212,0.003,True,1000,8000,1259169,-500.0,-91.625,408.375,-83.125,1.0,-153.8921875
+213,0.003,True,1000,8000,2869887,-500.0,-89.09375,410.90625,-84.9375,1.0,-356.03359375
+214,0.003,True,1000,8000,1506290,-500.0,-77.71875,422.28125,-86.34375,1.0,-188.79453125
+215,0.003,True,1000,8000,916134,-477.375,-86.65625,390.71875,-79.5625,1.0,-110.58515625

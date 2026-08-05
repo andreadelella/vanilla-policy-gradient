@@ -1,0 +1,61 @@
+{
+  "alpha": 0.05,
+  "barrier_pooling": "valid-transition mean with random M=N+K1",
+  "base_seed": 23,
+  "device": "cpu",
+  "dtype": "torch.float64",
+  "fisher": "undamped sampled-action S^T S / M",
+  "initializations": [
+    "uniform",
+    "adverse"
+  ],
+  "methods": [
+    "reward_only",
+    "detached_conditional_oracle",
+    "complete_weighted_oracle",
+    "uniform_action_oracle",
+    "visitation_only_oracle",
+    "full_pooled_fisher_oracle",
+    "detached_conditional_sampled"
+  ],
+  "preset": "pilot",
+  "primary_returns": "raw reward-to-go, trajectory mean",
+  "record_interval": 10,
+  "scales": {
+    "audit_batches": [
+      1,
+      2,
+      4,
+      8,
+      16,
+      32,
+      64,
+      128,
+      256
+    ],
+    "audit_policies": [
+      "uniform",
+      "adverse",
+      "rare_good",
+      "common_bad",
+      "near_optimal"
+    ],
+    "betas": [
+      0.01,
+      0.1,
+      0.2
+    ],
+    "main_batches": [
+      4,
+      32,
+      128
+    ],
+    "n_seeds": 20,
+    "repetitions": 5000,
+    "updates": 2000
+  },
+  "schema_version": 1,
+  "stage": "finite_batch_sampled_two_state_mdp",
+  "stream_derivation": "one CPU torch.Generator seeded 23 per unit; seed rows share paired base uniforms across methods",
+  "torch_version": "2.12.0+cpu"
+}

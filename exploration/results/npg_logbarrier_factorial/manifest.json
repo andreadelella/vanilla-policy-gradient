@@ -41,7 +41,24 @@
       "selected_target_kl": 0.001,
       "selection_uses_final_confirmatory_outcomes": false
     },
-    "exact_two_state": null,
+    "exact_two_state": {
+      "checkpoint_rows": 2797,
+      "complete": true,
+      "damping_controls": [
+        0.0,
+        0.1
+      ],
+      "endpoint_rows": 24,
+      "exact_npg_reward_only_escape_by_damping": {
+        "0.0": true,
+        "0.01": false,
+        "0.1": false
+      },
+      "exact_npg_reward_only_escapes_adverse_at_primary_damping": false,
+      "ordering_asserted_by_tests": false,
+      "primary_damping": 0.01,
+      "schema_version": 1
+    },
     "fisher_diagnostics": null,
     "fisher_validation": {
       "categorical_exact_relative_frobenius_error": 2.329721787977569e-16,
@@ -61,8 +78,32 @@
       "schema_version": 1
     },
     "sampled_two_state_full": null,
-    "sampled_two_state_pilot": null,
-    "sampled_two_state_smoke": null
+    "sampled_two_state_pilot": {
+      "checkpoint_rows": 216630,
+      "complete": true,
+      "endpoint_rows": 720,
+      "missing_state_rows": 216630,
+      "oracle_information_inserted_for_missing_s1": false,
+      "paired_difference_rows": 216,
+      "preset": "pilot",
+      "raw_uncentered_unnormalized_returns": true,
+      "schema_version": 1,
+      "seed_count": 20,
+      "summary_rows": 36
+    },
+    "sampled_two_state_smoke": {
+      "checkpoint_rows": 692,
+      "complete": true,
+      "endpoint_rows": 96,
+      "missing_state_rows": 692,
+      "oracle_information_inserted_for_missing_s1": false,
+      "paired_difference_rows": 144,
+      "preset": "smoke",
+      "raw_uncentered_unnormalized_returns": true,
+      "schema_version": 1,
+      "seed_count": 4,
+      "summary_rows": 24
+    }
   },
   "vpg_modified": false
 }

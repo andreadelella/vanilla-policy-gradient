@@ -1,0 +1,54 @@
+ablation status: 11/20 complete; 9 pending
+completed 1/9 pending: logbarrier_fixed, seed=403
+completed 2/9 pending: entropy_fixed, seed=403
+completed 3/9 pending: reward_only, seed=404
+completed 4/9 pending: logbarrier_handoff_h25, seed=403
+completed 5/9 pending: logbarrier_handoff_h25, seed=404
+completed 6/9 pending: reward_only, seed=405
+completed 7/9 pending: entropy_fixed, seed=405
+completed 8/9 pending: logbarrier_fixed, seed=405
+completed 9/9 pending: logbarrier_handoff_h25, seed=405
+{
+  "calibration": {
+    "calibration_seeds": [
+      221,
+      222,
+      223,
+      224,
+      225
+    ],
+    "calibration_updates_per_seed": 5,
+    "episodes_per_update": 8,
+    "finite": true,
+    "learning_rate": 0.003,
+    "median_unscaled_barrier_to_reward_ratio": 0.0005490347351806619,
+    "median_unscaled_entropy_to_reward_ratio": 0.0005094939542173074,
+    "outcomes_used_for_selection": false,
+    "schema_version": 1,
+    "selected_beta": 546.4135158976487,
+    "selected_entropy_coefficient": 588.8195483317652,
+    "target_median_regularizer_to_reward_gradient_norm": 0.3
+  },
+  "complete": true,
+  "episodes_per_seed_method": 8000,
+  "handoff_fraction": 0.25,
+  "learning_rate": 0.003,
+  "methods": [
+    "reward_only",
+    "entropy_fixed",
+    "logbarrier_fixed",
+    "logbarrier_handoff_h25"
+  ],
+  "npg_exclusion_reason": "NPG requires a separate learning-rate and damping baseline gate; the old hard-coded rate is not reused",
+  "npg_included": false,
+  "schema_version": 1,
+  "scientific_winner_asserted": false,
+  "seeds": [
+    401,
+    402,
+    403,
+    404,
+    405
+  ],
+  "updates_per_seed_method": 1000
+}

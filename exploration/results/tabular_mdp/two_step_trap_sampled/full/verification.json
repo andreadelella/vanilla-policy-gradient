@@ -1,0 +1,36 @@
+{
+  "checks": {
+    "conditional_enumeration": true,
+    "conditional_large_n": true,
+    "deterministic_replay": true,
+    "finite_ratio_bias": true,
+    "finite_short_training": true,
+    "fisher_enumeration": true,
+    "pooled_count": true,
+    "processed_gradient": true,
+    "rank_deficient_logdet": true,
+    "ratio_convergence": true,
+    "reward_unbiased": true,
+    "sample_shapes": true,
+    "zero_beta_replay": true,
+    "zero_probability": true,
+    "zero_s1_barrier_block": true,
+    "zero_s1_batch": true,
+    "zero_s1_fisher_block": true
+  },
+  "passed": true,
+  "residuals": {
+    "conditional_enumeration": 1.1102230246251565e-16,
+    "conditional_large_n": 2.2133718135289804e-05,
+    "fisher_enumeration": 2.7755575615628914e-17,
+    "processed_gradient": 2.7755575615628914e-17,
+    "reward_unbiased": 1.3877787807814457e-17,
+    "zero_probability": 0.0
+  },
+  "schema_version": 1,
+  "tolerances": {
+    "algebraic": 1e-12,
+    "eigenvalue": -1e-12,
+    "finite_difference": 1e-07
+  }
+}

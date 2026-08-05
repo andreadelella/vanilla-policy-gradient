@@ -30,6 +30,10 @@ EXTENSION_METHODS = ("reward_only", "logbarrier_handoff_h25")
 HANDOFF_UPDATE = 250
 VISITATION_AUDIT_STEPS = 2048
 SELECTED_BETA = 546.4135158976487
+DISCORDANT_CHECKPOINTS = (
+    0, 50, 100, 150, 200, 249, 250, 251, 300, 350, 400, 450,
+    500, 550, 750, 850, 1000,
+)
 
 
 def _predeclaration() -> dict:
@@ -285,6 +289,115 @@ def _exact_mcnemar_p(discordant_a: int, discordant_b: int) -> float:
     return min(1.0, 2.0 * tail)
 
 
+def _discordant_seed_diagnostics(
+    output_root: Path,
+    stage: Path,
+    endpoints: list[dict],
+    mechanism_rows: list[dict],
+) -> list[dict]:
+    endpoint_by_key = {
+        (int(row["seed"]), row["run_label"]): row for row in endpoints
+    }
+    mechanism_by_seed = {int(row["seed"]): row for row in mechanism_rows}
+    rows: list[dict] = []
+    for seed in ALL_SEEDS:
+        reward = endpoint_by_key[(seed, "reward_only")]
+        handoff = endpoint_by_key[(seed, "logbarrier_handoff_h25")]
+        if bool(reward["failure"]) == bool(handoff["failure"]):
+            continue
+        outcome_group = (
+            "reward_failed_handoff_succeeded"
+            if reward["failure"]
+            else "reward_succeeded_handoff_failed"
+        )
+        reward_run, handoff_run = _archive_run_roots(output_root, seed)
+        mechanism = mechanism_by_seed[seed]
+        for label, run in (
+            ("reward_only", reward_run),
+            ("logbarrier_handoff_h25", handoff_run),
+        ):
+            with (run / "checkpoint_behavior.csv").open(
+                newline="", encoding="utf-8"
+            ) as handle:
+                behavior = sorted(
+                    csv.DictReader(handle), key=lambda item: int(item["update"])
+                )
+            behavior_by_update = {int(item["update"]): item for item in behavior}
+
+            def first_update(field: str, threshold: float) -> int | None:
+                match = next(
+                    (
+                        int(item["update"])
+                        for item in behavior
+                        if float(item[field]) >= threshold
+                    ),
+                    None,
+                )
+                return match
+
+            endpoint = endpoint_by_key[(seed, label)]
+            prefix = "reward" if label == "reward_only" else "handoff"
+            row = {
+                "seed": seed,
+                "outcome_group": outcome_group,
+                "run_label": label,
+                "failure": bool(endpoint["failure"]),
+                "final_stochastic_return": endpoint["final_stochastic_return"],
+                "final_deterministic_return": endpoint["final_deterministic_return"],
+                "final_stochastic_termination_rate": endpoint["final_stochastic_termination_rate"],
+                "environment_step_return_auc": endpoint["environment_step_return_auc"],
+                "first_deterministic_return_ge_minus300_update": first_update(
+                    "deterministic_return", -300.0
+                ),
+                "first_deterministic_return_ge_minus100_update": first_update(
+                    "deterministic_return", -100.0
+                ),
+                "first_stochastic_return_ge_minus300_update": first_update(
+                    "stochastic_return", -300.0
+                ),
+                "first_stochastic_return_ge_minus100_update": first_update(
+                    "stochastic_return", -100.0
+                ),
+                "reference_entropy_mean_at_handoff": mechanism[
+                    f"{prefix}_reference_entropy_mean"
+                ],
+                "reference_entropy_q10_at_handoff": mechanism[
+                    f"{prefix}_reference_entropy_q10"
+                ],
+                "reference_entropy_q50_at_handoff": mechanism[
+                    f"{prefix}_reference_entropy_q50"
+                ],
+                "reference_entropy_q90_at_handoff": mechanism[
+                    f"{prefix}_reference_entropy_q90"
+                ],
+                "reference_action_margin_mean_at_handoff": mechanism[
+                    f"{prefix}_reference_margin_mean"
+                ],
+                "paired_reference_greedy_action_agreement": mechanism[
+                    "reference_greedy_action_agreement"
+                ],
+                "paired_reference_disagreement_state_count": mechanism[
+                    "reference_disagreement_state_count"
+                ],
+                "reference_state_count": mechanism["reference_state_count"],
+                "visitation_frequency_of_paired_disagreement_region": mechanism[
+                    f"{prefix}_visitation_frequency_of_disagreement_region"
+                ],
+            }
+            for update in DISCORDANT_CHECKPOINTS:
+                item = behavior_by_update.get(update)
+                row[f"stochastic_return_u{update:04d}"] = (
+                    None if item is None else float(item["stochastic_return"])
+                )
+                row[f"deterministic_return_u{update:04d}"] = (
+                    None if item is None else float(item["deterministic_return"])
+                )
+            rows.append(row)
+    rows.sort(key=lambda item: (int(item["seed"]), item["run_label"]))
+    _write_csv(stage / "discordant_seed_diagnostics.csv", rows)
+    return rows
+
+
 def summarize_extension(output_root: Path) -> dict:
     stage = _stage(output_root)
     declaration = _ensure_predeclaration(stage)
@@ -312,6 +425,9 @@ def summarize_extension(output_root: Path) -> dict:
     _write_csv(stage / "combined_method_summaries.csv", summaries)
     _write_csv(stage / "combined_paired_differences.csv", paired)
     mechanism = _paired_mechanism_audit(output_root, stage)
+    discordant_diagnostics = _discordant_seed_diagnostics(
+        output_root, stage, endpoints, mechanism
+    )
     result = {
         "schema_version": 1,
         "complete": True,
@@ -319,6 +435,8 @@ def summarize_extension(output_root: Path) -> dict:
         "paired_seed_count": len(ALL_SEEDS),
         "paired_failure_discordance": discordance,
         "mechanism_seed_rows": len(mechanism),
+        "discordant_seed_diagnostic_rows": len(discordant_diagnostics),
+        "discordant_seed_diagnostics": "discordant_seed_diagnostics.csv",
         "outcomes_used_to_change_configuration": False,
     }
     (stage / "combined_result.json").write_text(

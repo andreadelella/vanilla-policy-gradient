@@ -1,0 +1,9 @@
+experiment,label,method,initialization,n,beta,beta_after,handoff_update,skipped,finite_fraction
+handoff,reward_only,reward_only,uniform,32,0.0,,,1,1.0
+handoff,sampled_conditional_fixed,detached_conditional_sampled,uniform,32,0.2,,,1,1.0
+handoff,sampled_conditional_handoff,detached_conditional_sampled,uniform,32,0.2,0.0,2000,1,1.0
+handoff,full_oracle_handoff,full_pooled_fisher_oracle,uniform,32,0.1,0.0,2000,1,1.0
+handoff,reward_only,reward_only,adverse,32,0.0,,,1,1.0
+handoff,sampled_conditional_fixed,detached_conditional_sampled,adverse,32,0.2,,,1,1.0
+handoff,sampled_conditional_handoff,detached_conditional_sampled,adverse,32,0.2,0.0,2000,1,1.0
+handoff,full_oracle_handoff,full_pooled_fisher_oracle,adverse,32,0.1,0.0,2000,1,1.0

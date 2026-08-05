@@ -1,0 +1,13 @@
+run_label,metric,paired_seed_count,mean_difference_method_minus_reward_only,ci95_low,ci95_high
+entropy_fixed,final_stochastic_return,5,-78.4125,-320.90778864437357,164.08278864437358
+entropy_fixed,stochastic_return_auc,5,-71.6915625,-277.133188246792,133.750063246792
+entropy_fixed,final_stochastic_termination_rate,5,0.19375,-0.3661293803725576,0.7536293803725576
+entropy_fixed,environment_steps,5,592066.2,-1083582.3079478268,2267714.707947827
+logbarrier_fixed,final_stochastic_return,5,-82.8875,-314.99945112500023,149.2244511250002
+logbarrier_fixed,stochastic_return_auc,5,-96.14000000000001,-276.4540329265531,84.17403292655308
+logbarrier_fixed,final_stochastic_termination_rate,5,0.16875,-0.3658170854933617,0.7033170854933617
+logbarrier_fixed,environment_steps,5,766060.0,-654329.9930725517,2186449.9930725517
+logbarrier_handoff_h25,final_stochastic_return,5,80.425,-137.7335443909967,298.58354439099674
+logbarrier_handoff_h25,stochastic_return_auc,5,-32.72802812500001,-124.7198871408301,59.26383089083008
+logbarrier_handoff_h25,final_stochastic_termination_rate,5,0.2,-0.3552890210400001,0.7552890210400001
+logbarrier_handoff_h25,environment_steps,5,272577.0,-464572.65773864824,1009726.6577386482

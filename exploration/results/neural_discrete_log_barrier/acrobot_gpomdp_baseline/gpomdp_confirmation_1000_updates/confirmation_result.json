@@ -1,0 +1,26 @@
+{
+  "ablation_authorized_by_gate": true,
+  "complete": true,
+  "episodes_per_seed": 8000,
+  "gate_checks": {
+    "all_finite": true,
+    "four_of_five_improve_by_100": true,
+    "improvement_ci_lower_above_zero": true,
+    "median_final_return_at_least_minus_300": true,
+    "median_termination_rate_at_least_0p8": true
+  },
+  "gpomdp_baseline_gate_passed": true,
+  "improved_seed_count_at_least_100": 5,
+  "improvement_95pct_ci": [
+    394.82238714106825,
+    423.6026128589317
+  ],
+  "learning_rate": 0.003,
+  "mean_stochastic_improvement": 409.2125,
+  "median_final_stochastic_return": -86.65625,
+  "median_final_stochastic_termination_rate": 1.0,
+  "schema_version": 1,
+  "seed_count": 5,
+  "stage": "gpomdp_confirmation",
+  "updates_per_seed": 1000
+}

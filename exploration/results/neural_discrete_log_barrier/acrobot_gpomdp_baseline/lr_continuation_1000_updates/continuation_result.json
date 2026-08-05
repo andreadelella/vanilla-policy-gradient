@@ -1,0 +1,38 @@
+{
+  "complete": true,
+  "episodes_per_run": 8000,
+  "provisional_learning_rate": 0.003,
+  "ranked_candidates": [
+    {
+      "all_finite": true,
+      "learning_rate": 0.003,
+      "mean_final_stochastic_return": -84.875,
+      "mean_final_termination_rate": 1.0,
+      "mean_stochastic_improvement": 411.375,
+      "median_final_stochastic_return": -84.875,
+      "median_stochastic_return_auc": -128.76796875,
+      "minimum_final_stochastic_return": -86.9375,
+      "minimum_stochastic_improvement": 405.5625,
+      "rank": 1,
+      "seed_count": 2
+    },
+    {
+      "all_finite": true,
+      "learning_rate": 0.01,
+      "mean_final_stochastic_return": -84.4375,
+      "mean_final_termination_rate": 1.0,
+      "mean_stochastic_improvement": 411.8125,
+      "median_final_stochastic_return": -84.4375,
+      "median_stochastic_return_auc": -170.9578125,
+      "minimum_final_stochastic_return": -85.5,
+      "minimum_stochastic_improvement": 407.0,
+      "rank": 2,
+      "seed_count": 2
+    }
+  ],
+  "run_count": 4,
+  "schema_version": 1,
+  "stage": "learning_rate_continuation",
+  "updates_per_run": 1000,
+  "viability_rule": "both screening seeds finite, final stochastic return above -450, and positive initial-to-final improvement"
+}

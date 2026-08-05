@@ -1,0 +1,17 @@
+{
+  "checkpoint_rows": 88,
+  "complete": true,
+  "fixed_reference_bank": "exploration\\results\\neural_discrete_log_barrier\\state_banks\\acrobot_reference_states.npz",
+  "interpretation_deferred_until_rows_are_compared": true,
+  "methods": [
+    "reward_only",
+    "logbarrier_handoff_h25"
+  ],
+  "on_policy_states_per_checkpoint": 128,
+  "schema_version": 1,
+  "seeds": [
+    402,
+    403
+  ],
+  "training_rerun": false
+}
