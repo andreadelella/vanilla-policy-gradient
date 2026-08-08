@@ -1,0 +1,11 @@
+{
+  "escape_definition": "minimum t such that exact V1(t) > 0.5",
+  "maximum_q_definition": "maximum q over checkpoints 0 through updates",
+  "q_at_escape_definition": "q evaluated at t_escape",
+  "q_threshold": 0.6666666666666666,
+  "schema_version": 1,
+  "source": "exploration\\results\\joint_state_action_fisher\\step2_two_state\\checkpoints.csv",
+  "time_above_definition": "count of intervals [t,t+1) with t < updates and q(t) > 2/3",
+  "trajectory_count": 38,
+  "value_threshold": 0.5
+}

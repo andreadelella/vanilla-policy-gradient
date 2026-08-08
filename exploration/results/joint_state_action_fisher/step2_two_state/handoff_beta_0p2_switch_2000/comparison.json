@@ -1,0 +1,14 @@
+{
+  "joint_minus_pooled": {
+    "active_intervals_above_q_two_thirds": -640.0,
+    "final_p_good": -8.871859509818059e-05,
+    "final_q": -0.00015592125340668783,
+    "final_return": -0.00018389044606770266,
+    "maximum_q_active_phase": -0.03450803848032269,
+    "q_at_escape": -0.03214538566779768,
+    "switch_q": -0.03450803848032269,
+    "switch_return": -0.01861305946393943,
+    "t_escape": 21.0
+  },
+  "schema_version": 1
+}

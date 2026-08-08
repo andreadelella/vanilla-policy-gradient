@@ -9,7 +9,9 @@
     "magnitude_matched_betas.json",
     "mechanism_summary.json",
     "plots/",
-    "manifest.json"
+    "manifest.json",
+    "trajectory_level_summaries.csv",
+    "trajectory_summary_definition.json"
   ],
   "checkpoint_count": 76038,
   "device": "cpu",
@@ -17,6 +19,12 @@
   "exact_identity_gate_passed": true,
   "git_commit": "8781a34a9479f691a1b848f7b2386225c746da10",
   "handoff_included": false,
+  "post_hoc_trajectory_summary": {
+    "q_threshold": 0.6666666666666666,
+    "scientific_role": "post_hoc_diagnostic",
+    "trajectory_count": 38,
+    "value_threshold": 0.5
+  },
   "python_version": "3.13.14",
   "run_count": 38,
   "schema_version": 1,

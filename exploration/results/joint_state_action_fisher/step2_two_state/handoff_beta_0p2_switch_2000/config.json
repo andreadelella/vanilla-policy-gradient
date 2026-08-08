@@ -1,0 +1,20 @@
+{
+  "active_beta": 0.2,
+  "alpha": 0.05,
+  "comparison": [
+    "pooled_policy_logdet_handoff",
+    "joint_state_action_logdet_handoff"
+  ],
+  "device": "cpu",
+  "dtype": "torch.float64",
+  "escape_definition": "minimum t such that exact V1(t) > 0.5",
+  "handoff_fraction": 0.5,
+  "handoff_update": 2000,
+  "initialization": "adverse",
+  "post_handoff_objective": "exact_reward_only",
+  "q_threshold": 0.6666666666666666,
+  "sampling": false,
+  "schema_version": 1,
+  "scientific_role": "exact_mechanism",
+  "updates": 4000
+}

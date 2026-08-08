@@ -1,0 +1,19 @@
+{
+  "artifacts": [
+    "config.json",
+    "checkpoints.csv",
+    "trajectory_summaries.csv",
+    "comparison.json",
+    "handoff_comparison.png",
+    "manifest.json"
+  ],
+  "checkpoint_count": 8002,
+  "finite": true,
+  "git_commit": "4aa9dc3331ff18800a68f984851f4a389333de7b",
+  "python_version": "3.13.14",
+  "run_count": 2,
+  "schema_version": 1,
+  "scientific_role": "exact_mechanism",
+  "status": "complete",
+  "torch_version": "2.12.0+cpu"
+}
