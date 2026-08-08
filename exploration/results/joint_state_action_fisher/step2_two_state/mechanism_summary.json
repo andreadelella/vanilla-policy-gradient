@@ -1,0 +1,65 @@
+{
+  "endpoint_contrasts": [
+    {
+      "beta": 0.01,
+      "initialization": "uniform",
+      "joint_minus_pooled_final_p_good": -4.2356064743120925e-05,
+      "joint_minus_pooled_final_q": -0.00018065656905297267,
+      "joint_minus_pooled_final_return": -0.00014747762452893554,
+      "protocol": "same_beta"
+    },
+    {
+      "beta": 0.1,
+      "initialization": "uniform",
+      "joint_minus_pooled_final_p_good": -0.001275471827328456,
+      "joint_minus_pooled_final_q": -0.008463953797045898,
+      "joint_minus_pooled_final_return": -0.005054357566387058,
+      "protocol": "same_beta"
+    },
+    {
+      "beta": 0.2,
+      "initialization": "uniform",
+      "joint_minus_pooled_final_p_good": -0.010760974328612338,
+      "joint_minus_pooled_final_q": -0.03377117414241548,
+      "joint_minus_pooled_final_return": -0.01801663532800235,
+      "protocol": "same_beta"
+    },
+    {
+      "beta": 0.01,
+      "initialization": "adverse",
+      "joint_minus_pooled_final_p_good": -4.5117178752857034e-06,
+      "joint_minus_pooled_final_q": -9.789415045176157e-05,
+      "joint_minus_pooled_final_return": 6.186611953645782e-05,
+      "protocol": "same_beta"
+    },
+    {
+      "beta": 0.1,
+      "initialization": "adverse",
+      "joint_minus_pooled_final_p_good": -0.003555074768830102,
+      "joint_minus_pooled_final_q": -0.01250676156844599,
+      "joint_minus_pooled_final_return": -0.008665880610451149,
+      "protocol": "same_beta"
+    },
+    {
+      "beta": 0.2,
+      "initialization": "adverse",
+      "joint_minus_pooled_final_p_good": -0.011378132009944975,
+      "joint_minus_pooled_final_q": -0.03450803848032269,
+      "joint_minus_pooled_final_return": -0.01861305946393932,
+      "protocol": "same_beta"
+    }
+  ],
+  "h2_nonparallel_direction": {
+    "fraction_cosine_below_0p999999": 0.9550173010380623,
+    "maximum_grid_cosine": 0.9999999939996039,
+    "minimum_grid_cosine": -0.7689521242028632
+  },
+  "h3_joint_correction": {
+    "all_grid_corrections_reduce_q": true,
+    "maximum_correction_dq": -0.00026865799492385993,
+    "maximum_joint_minus_pooled_dq": -0.0002686579949238571,
+    "minimum_correction_dq": -0.02635998787237269
+  },
+  "handoff_status": "deferred_until_fixed_objectives_are_interpreted",
+  "schema_version": 1
+}

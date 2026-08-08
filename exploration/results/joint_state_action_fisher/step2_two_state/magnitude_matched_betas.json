@@ -1,0 +1,7 @@
+{
+  "joint_correction_only": 5.3924415497298055,
+  "joint_state_action_logdet": 0.023443771746623942,
+  "pooled_policy_logdet": 0.02335128732898775,
+  "state_distribution_only": 0.04385011036399026,
+  "statewise_conditional_barrier": 0.030139063695336907
+}

@@ -1,0 +1,49 @@
+{
+  "alpha": 0.05,
+  "device": "cpu",
+  "dtype": "torch.float64",
+  "experiment": "exact_two_state_joint_fisher",
+  "gradient_type": "exact_euclidean",
+  "initializations": {
+    "adverse": [
+      2.0,
+      -2.0,
+      -2.0,
+      2.0
+    ],
+    "uniform": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "magnitude_matching": {
+    "initialization": "adverse",
+    "kappa": 1.0
+  },
+  "methods": [
+    "reward_only",
+    "statewise_conditional_barrier",
+    "pooled_policy_logdet",
+    "joint_state_action_logdet",
+    "state_distribution_only",
+    "joint_correction_only"
+  ],
+  "normalization": "one_half_logdet",
+  "same_beta_values": [
+    0.01,
+    0.1,
+    0.2
+  ],
+  "sampling": false,
+  "schema_version": 1,
+  "scientific_role": "exact_mechanism",
+  "smoke": false,
+  "state_weighting_convention": "transition_pooled_population",
+  "updates": 2000,
+  "vector_field": {
+    "beta": 0.1,
+    "grid_size": 17
+  }
+}
