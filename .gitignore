@@ -1,65 +1,7 @@
-*.pyc
-!report/figures/*.png
-fisher_analysis/
-.venv/
 __pycache__/
-
-# Local research archive. The complete exploration tree, including historical
-# results, remains on disk but is intentionally excluded from the university
-# repository. Canonical university code must live outside this directory.
-/exploration/
-
-# Local rendering and scratch artifacts.
-/tmp/
-
-# Per-task shards of the parallel sampled factorial: intermediate files that the
-# combined CSVs already contain, and re-derivable by rerunning the driver.
-exploration/results/**/shards/
-
-# Per-update traces of the sampled factorial. These are the bulk of a run (320 MB
-# of checkpoints at 2000 updates, past GitHub's 100 MB per-file limit) and are not
-# needed to reproduce any reported number: sampled_endpoints.csv regenerates
-# sampled_method_summaries.csv and sampled_paired_differences.csv byte-identically.
-# Rerun run_sampled_damped.py to recover the traces when a diagnostic needs them.
-exploration/results/**/sampled_checkpoints.csv
-exploration/results/**/sampled_missing_state_audit.csv
-
-# The budget sweep's trace, excluded for the same reason under a different name:
-# 26 MB of per-run rows, of which only the handoff checkpoint is ever read.
-# budget_endpoints.csv alone regenerates budget_contrasts.csv and every column of
-# budget_summaries.csv except pi1_good_at_handoff, which needs the trace; both
-# committed CSVs already hold the derived values. Rerun budget_sweep.py to
-# recover it.
-exploration/results/**/budget_checkpoints.csv
-
-# Per-run .npz archive dumps of the tabular_mdp trap experiments: 1.23 GB across
-# five archives/ directories, and the largest single item in the tree by an order
-# of magnitude. These are intermediate per-seed dumps, not reported quantities --
-# the endpoint and summary CSVs alongside them already hold every value the
-# reports cite. Rerun the corresponding driver to regenerate an archive when a
-# diagnostic needs the raw arrays. The result arrays that ARE cited
-# (categorical_bandit paper/eta, acrobot fisher_spectra) stay committed.
-exploration/results/**/archives/
-
-# Prose and typeset output. The experiments' numbers live in the committed CSV
-# and JSON; the writing that interprets them is drafted outside this repo, so
-# only data is versioned here. Files already tracked before this rule (the
-# per-package README.md, sampled_two_state.tex, two_state_geometry.tex) are
-# unaffected -- .gitignore does not untrack, and they stay under version control.
-*.tex
-*.md
-!REPOSITORY_INVENTORY.md
-*.pdf
-
-# LaTeX build byproducts, orphaned by the rule above: these are regenerated from
-# the .tex sources on every compile and are meaningless without them.
-*.aux
-*.toc
-*.out
-*.fls
-*.fdb_latexmk
-*.synctex.gz
-*.bbl
-*.blg
-*.lof
-*.lot
+*.py[cod]
+.venv/
+/obsolete/
+/runs/
+/output/
+/fisher_analysis/results/
