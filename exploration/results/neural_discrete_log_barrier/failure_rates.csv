@@ -1,6 +1,0 @@
-run_label,seed_count,failure_definition,failure_count,failure_rate
-gpomdp_entropy_fixed,10,final deterministic Acrobot return < -200,10,1.0
-gpomdp_logbarrier_fixed,10,final deterministic Acrobot return < -200,10,1.0
-gpomdp_logbarrier_handoff_h25,10,final deterministic Acrobot return < -200,10,1.0
-gpomdp_reward_only,10,final deterministic Acrobot return < -200,10,1.0
-npg_reward_only,10,final deterministic Acrobot return < -200,10,1.0

@@ -1,6 +1,0 @@
-learning_rate,seed_count,all_finite,median_stochastic_return_auc,mean_final_stochastic_return,median_final_stochastic_return,minimum_final_stochastic_return,mean_stochastic_improvement,minimum_stochastic_improvement,mean_final_termination_rate,rank
-0.003,2,True,-218.29427083333331,-100.0,-100.0,-104.5625,396.25,395.4375,1.0,1
-0.01,2,True,-323.7630208333333,-295.53125,-295.53125,-500.0,200.71875,0.0,0.5,2
-0.001,2,True,-386.87760416666663,-314.03125,-314.03125,-500.0,182.21875,0.0,0.5,3
-0.0003,2,True,-477.34895833333337,-435.1875,-435.1875,-500.0,61.0625,0.0,0.421875,4
-0.0001,2,True,-493.40494791666663,-487.671875,-487.671875,-500.0,8.578125,0.0,0.125,5

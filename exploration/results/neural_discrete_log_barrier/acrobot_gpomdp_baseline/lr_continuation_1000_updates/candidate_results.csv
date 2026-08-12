@@ -1,3 +1,0 @@
-learning_rate,seed_count,all_finite,median_stochastic_return_auc,mean_final_stochastic_return,median_final_stochastic_return,minimum_final_stochastic_return,mean_stochastic_improvement,minimum_stochastic_improvement,mean_final_termination_rate,rank
-0.003,2,True,-128.76796875,-84.875,-84.875,-86.9375,411.375,405.5625,1.0,1
-0.01,2,True,-170.9578125,-84.4375,-84.4375,-85.5,411.8125,407.0,1.0,2

@@ -1,4 +1,0 @@
-learning_rate,mean_final_deterministic_return,finite
-0.0003,-500.0,True
-0.001,-500.0,True
-0.003,-500.0,True

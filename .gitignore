@@ -4,6 +4,11 @@ fisher_analysis/
 .venv/
 __pycache__/
 
+# Local research archive. The complete exploration tree, including historical
+# results, remains on disk but is intentionally excluded from the university
+# repository. Canonical university code must live outside this directory.
+/exploration/
+
 # Per-task shards of the parallel sampled factorial: intermediate files that the
 # combined CSVs already contain, and re-derivable by rerunning the driver.
 exploration/results/**/shards/
@@ -40,6 +45,7 @@ exploration/results/**/archives/
 # unaffected -- .gitignore does not untrack, and they stay under version control.
 *.tex
 *.md
+!REPOSITORY_INVENTORY.md
 *.pdf
 
 # LaTeX build byproducts, orphaned by the rule above: these are regenerated from
