@@ -9,6 +9,9 @@ __pycache__/
 # repository. Canonical university code must live outside this directory.
 /exploration/
 
+# Local rendering and scratch artifacts.
+/tmp/
+
 # Per-task shards of the parallel sampled factorial: intermediate files that the
 # combined CSVs already contain, and re-derivable by rerunning the driver.
 exploration/results/**/shards/
