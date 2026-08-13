@@ -2,21 +2,15 @@ import argparse
 import json
 import os
 
+from vpg.config import parse_hidden_sizes
 from vpg.train import train_from_config
 
-# Comment key: M says what the function does. A says how it works and why.
-
-
-#M: Converts a command-line 0 or 1 into a Python Boolean.
-#A: Changes the value to an integer first, then converts it to True or False.
 def str_to_bool(x):
     return bool(int(x))
 
 
-#M: Parses --seed_workers, which is either the literal 'auto' or a positive integer.
-#A: Keeps 'auto' as a string for train.py to resolve at runtime (it needs the core
-#   count); everything else must be an int >= 1.
 def _seed_workers_arg(value):
+    """Parse ``auto`` or a positive worker count."""
     if isinstance(value, str) and value.lower() == "auto":
         return "auto"
     try:
@@ -28,17 +22,6 @@ def _seed_workers_arg(value):
     return n
 
 
-#M: Converts text such as "32,32" into a list of hidden-layer sizes.
-#A: Splits at commas, converts each part to an integer, and rejects invalid sizes.
-def parse_hidden_sizes(value: str):
-    sizes = [int(v.strip()) for v in value.split(",") if v.strip()]
-    if not sizes or any(size <= 0 for size in sizes):
-        raise ValueError("hidden_sizes must contain positive integers, e.g. '32,32'")
-    return sizes
-
-
-#M: Builds the training configuration from the parsed command-line arguments.
-#A: Collects all settings in one dictionary and converts special values to their final types.
 def build_config(args):
     return {
         "run_mode": args.run_mode,
@@ -80,18 +63,17 @@ def build_config(args):
     }
 
 
-# Keys computed by run.py — must not be overridden by config.json.
+# Keys computed by run.py must not be overridden by config.json.
 _SKIP_FROM_FILE = {"output_dir", "scored_checkpoints"}
 
 # Config keys stored as JSON booleans but argparse expects a 0/1 int.
 _BOOL_KEYS = {
     "center_returns", "normalize_returns", "clip_actions",
-    "learn_std", "save_plots", "save_checkpoints", "record_video",
+    "learn_std", "save_plots", "save_checkpoints", "log_metrics",
+    "record_video",
 }
 
 
-#M: Uses values from config.json as command-line defaults.
-#A: Loads the file, converts values to argparse's expected format, and lets explicit CLI values override them.
 def _apply_file_config(parser, config_path="config.json"):
     """Promote config.json values to argparse defaults.
 
@@ -117,14 +99,15 @@ def _apply_file_config(parser, config_path="config.json"):
     parser.set_defaults(**overrides)
 
 
-#M: Prints the main environment, batch, and algorithm settings before training.
-#A: Reads the resolved configuration and shows the values most useful for checking a run.
 def _print_algo_header(cfg):
     batch = cfg["n_envs"] * cfg["n_trajectories"]
     print(f"Environment  : {cfg['env_id']}")
     print(f"Mode         : {cfg['run_mode']}")
     print(f"Horizon      : {cfg['horizon']}")
-    print(f"Batch        : {batch} episodes/update ({cfg['n_envs']} envs × {cfg['n_trajectories']} traj)")
+    print(
+        f"Batch        : {batch} episodes/update "
+        f"({cfg['n_envs']} envs x {cfg['n_trajectories']} traj)"
+    )
     if cfg["run_mode"] == "multiseed":
         sw = cfg.get("seed_workers", 1)
         n_seeds = len(cfg.get("seeds", [cfg["seed"]]))
@@ -136,9 +119,7 @@ def _print_algo_header(cfg):
         print(f"Algorithm    : GPOMDP (Adam, lr={cfg['lr']})")
 
 
-#M: Reads command-line options and starts a training run.
-#A: Builds the parser, merges defaults, saves the final config, and passes it to train.py.
-def main():
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
@@ -197,8 +178,9 @@ def main():
             "process. 1 (default) runs them sequentially, exactly as before. An integer "
             "N runs N at a time; 'auto' picks a safe count from the core count and "
             "--n_envs. Seeds are independent, so concurrency does not change any result. "
-            "Note: each seed itself spawns --n_envs env workers, so total processes ≈ "
-            "seed_workers × n_envs — keep that near the core count to avoid thrashing."
+            "Note: each seed itself spawns --n_envs env workers, so total processes "
+            "are approximately seed_workers x n_envs; keep that near the core count "
+            "to avoid thrashing."
         ),
     )
 
@@ -233,7 +215,7 @@ def main():
         "--gamma",
         type=float,
         default=0.99,
-        help="Discount factor γ ∈ (0, 1]. Controls down-weighting of future rewards.",
+        help="Discount factor gamma in (0, 1]. Controls future-reward weighting.",
     )
     parser.add_argument(
         "--returns_implementation",
@@ -269,7 +251,10 @@ def main():
         "--npg_damping",
         type=float,
         default=1e-2,
-        help="Tikhonov damping λ added to the Fisher diagonal: (F + λI)⁻¹. Increase if solve fails.",
+        help=(
+            "Tikhonov damping added to the Fisher diagonal: solve "
+            "(F + damping * I) d = g. Increase it if the solve fails."
+        ),
     )
     parser.add_argument(
         "--entropy_coeff",
@@ -325,7 +310,10 @@ def main():
         "--init_log_std",
         type=float,
         default=-0.5,
-        help="Initial log std of the Gaussian policy (σ ≈ 0.6). Controls initial exploration noise.",
+        help=(
+            "Initial log standard deviation of the Gaussian policy "
+            "(-0.5 gives std about 0.6)."
+        ),
     )
     parser.add_argument(
         "--learn_std",
@@ -347,13 +335,19 @@ def main():
         type=int,
         default=1,
         choices=[0, 1],
-        help="Save best/final policy weights to output_dir/policy/ and periodic snapshots to output_dir/checkpoints/.",
+        help=(
+            "Save best/final policy weights to output_dir/policy/ and periodic "
+            "snapshots to output_dir/checkpoints/."
+        ),
     )
     parser.add_argument(
         "--checkpoint_interval",
         type=int,
         default=500,
-        help="Save a policy snapshot to output_dir/checkpoints/ every N iterations. 0 disables periodic snapshots. Ignored if --save_checkpoints 0.",
+        help=(
+            "Save a policy snapshot to output_dir/checkpoints/ every N "
+            "iterations. 0 disables snapshots. Ignored if --save_checkpoints 0."
+        ),
     )
     parser.add_argument(
         "--log_metrics",
@@ -372,10 +366,12 @@ def main():
         help="Record a video of the trained policy and save to output_dir/videos/.",
     )
 
-    # Apply config.json values as defaults before parsing CLI arguments.
     _apply_file_config(parser)
+    return parser
 
-    args = parser.parse_args()
+
+def main(argv=None):
+    args = build_parser().parse_args(argv)
 
     algorithm = args.algorithm
 

@@ -1,7 +1,5 @@
 import numpy as np
 
-# Comment key: M says what the function does. A says how it works and why.
-
 
 # Two-sided 95% Student-t critical values for 1..30 degrees of freedom.
 # Keeping the small-sample values local avoids adding SciPy solely for a
@@ -41,18 +39,13 @@ _T_CRITICAL_95 = (
 )
 
 
-#M: Returns the number used to build a two-sided 95% Student-t interval.
-#A: Uses exact table values for small samples and a close approximation for large samples.
 def student_t_critical_95(n_samples):
     """Return the two-sided 95% Student-t critical value for a sample mean."""
-    # We need at least two samples to estimate variation between samples.
     if n_samples < 2:
         raise ValueError("At least two independent samples are required for a confidence interval")
 
-    # Estimating the sample mean uses one degree of freedom.
     degrees_of_freedom = n_samples - 1
 
-    # Small samples need the larger Student-t values stored in the table above.
     if degrees_of_freedom <= 30:
         return _T_CRITICAL_95[degrees_of_freedom]
 
@@ -69,25 +62,13 @@ def student_t_critical_95(n_samples):
     )
 
 
-#M: Calculates the mean and its two-sided 95% confidence interval.
-#A: Measures variation across independent samples and uses Student-t because
-#   the true population variation is unknown.
 def mean_confidence_interval(data):
     """Mean and two-sided 95% Student-t interval across independent samples."""
-    # Axis 0 contains the independent samples, usually different training seeds.
     data = np.asarray(data, dtype=np.float64)
     if data.ndim == 0 or data.shape[0] < 2:
         raise ValueError("At least two independent samples are required for a confidence interval")
 
-    # Calculate the mean at every position, such as every training iteration.
     mean = data.mean(axis=0)
-
-    # Standard error = sample standard deviation / square root of sample count.
-    # ddof=1 makes this the sample standard deviation.
     sem = data.std(axis=0, ddof=1) / np.sqrt(data.shape[0])
-
-    # The margin grows when there are few samples or when samples vary strongly.
     margin = student_t_critical_95(data.shape[0]) * sem
-
-    # Confidence interval = mean +/- margin.
     return mean, mean - margin, mean + margin

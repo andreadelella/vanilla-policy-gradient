@@ -10,8 +10,6 @@ import matplotlib.pyplot as plt
 
 from vpg.stats import mean_confidence_interval
 
-# Comment key: M says what the function does. A says how it works and why.
-
 
 _ALGO_STYLES = {
     "gpomdp": {"color": "steelblue",  "label": "GPOMDP (Adam)"},
@@ -19,8 +17,6 @@ _ALGO_STYLES = {
 }
 
 
-#M: Plots reward curves for several algorithms on the same graph.
-#A: Shows one curve for a single seed or a mean with 95% confidence band for many seeds.
 def plot_algorithm_comparison(
     rewards_dict,
     save_dir,
@@ -68,8 +64,6 @@ def plot_algorithm_comparison(
     print(f"Saved comparison plot: {save_path}")
 
 
-#M: Plots one experiment's mean reward and 95% confidence interval across seeds.
-#A: Accepts one or many seed curves and draws a confidence band only when it can be calculated.
 def plot_seed_ci(curves, save_path=None, title="Training reward across seeds",
                  ylabel="Average training return", xlabel="Iteration", label=None):
     """Plot mean +/- 95% CI for a single run's per-seed curves.
@@ -106,8 +100,6 @@ def plot_seed_ci(curves, save_path=None, title="Training reward across seeds",
         print(f"Saved CI plot: {save_path}")
 
 
-#M: Saves a simple reward-versus-iteration plot for one training run.
-#A: Draws the supplied reward sequence and writes it as a PNG file.
 def plot_training_curves(
     training_rewards,
     save_dir="plots",

@@ -4,11 +4,6 @@ import gymnasium as gym
 import imageio
 import torch
 
-# Comment key: M says what the function does. A says how it works and why.
-
-
-#M: Runs a policy in an environment and saves rendered episodes as MP4 videos.
-#A: Samples actions without gradients, clips continuous actions, and stores every rendered frame.
 def record_policy_video(
     env_id,
     policy,
@@ -49,8 +44,6 @@ def record_policy_video(
     env.close()
 
 
-#M: Loads a saved policy checkpoint and records new videos from it.
-#A: Rebuilds the policy from config.json, loads its weights, and calls record_policy_video.
 def record_checkpoint_video(
     run_dir,
     checkpoint_name="best.pt",

@@ -1,6 +1,4 @@
 import contextlib
-import csv
-import json
 import multiprocessing as mp
 import os
 import sys
@@ -11,8 +9,15 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 import gymnasium as gym
 import numpy as np
 import torch
-from torch.distributions import kl_divergence
 
+from vpg.artifacts import load_config, save_training_rewards
+from vpg.diagnostics import (
+    append_metrics_row as _append_metrics_row,
+    freeze_distribution as _frozen_distribution,
+    gradient_norm as _grad_norm,
+    measure_kl as _measure_kl,
+    policy_stats as _policy_stats,
+)
 from vpg.plotting import plot_training_curves
 from vpg.video import record_policy_video
 from vpg.data_collection import collect_parallel_trajectories
@@ -24,84 +29,27 @@ from vpg.gpomdp import (
     trajectories_to_tensors,
 )
 
-# Comment key: M says what the function does. A says how it works and why.
-
-
-#M: Loads training settings from a JSON file.
-#A: Opens the file and returns its contents as a Python dictionary.
-def load_config(path="config.json"):
-    with open(path, "r") as f:
-        return json.load(f)
-
-
-#M: Saves reward curves together with the seed that produced each curve.
-#A: Converts values to fixed NumPy types and stores rewards and seeds in one NPZ file.
-def save_training_rewards(output_dir, rewards, seeds, filename="training_rewards.npz"):
-    """Save per-seed training curves to an .npz archive.
-
-    rewards: array-like [n_seeds, n_iterations].
-    seeds:   sequence of length n_seeds; seeds[i] is the unique id for rewards[i],
-             so individual seed performance can be recovered downstream.
-    """
-    rewards = np.asarray(rewards, dtype=np.float32)
-    seeds = np.asarray(seeds, dtype=np.int64)
-    assert rewards.shape[0] == seeds.shape[0], "one seed id required per reward curve"
-
-    path = os.path.join(output_dir, filename)
-    np.savez(path, rewards=rewards, seeds=seeds)
-    return path
-
-
-#M: Column order for the per-iteration diagnostics log.
-#A: Fixed so the CSV header is stable and downstream readers can rely on it.
-METRIC_FIELDS = (
-    "iteration",
-    "train_reward",
-    "best_reward",
-    "kl",            # true KL(pi_old || pi_new) over the batch states, after the step
-    "grad_norm",     # ||g|| before NPG preconditioning
-    "nat_grad_norm", # ||F^-1 g|| after preconditioning (equals grad_norm for GPOMDP)
-    "entropy",       # mean policy entropy, in nats
-    "mean_std",      # mean action std; shrinking std drives Fisher curvature up
-    "return_mean",   # mean discounted return over valid steps (pre-centering)
-    "return_std",    # std of those returns; the divisor when normalize_returns is on
-    "episode_len",   # mean steps per episode
-    "rollout_time",
-    "update_time",
-    "total_time",
-)
-
 
 class _Tee:
     """Duplicate writes to several streams (used to mirror stdout into a log file)."""
 
-    #M: Remembers every stream that should receive the output.
-    #A: Stores the streams so each write can be forwarded to all of them.
     def __init__(self, *streams):
         self._streams = streams
 
-    #M: Sends text to every stream.
-    #A: Flushes immediately so a killed run still has a complete log on disk.
     def write(self, data):
         for stream in self._streams:
             stream.write(data)
             stream.flush()
         return len(data)
 
-    #M: Flushes every stream.
-    #A: Called by print() and at interpreter shutdown.
     def flush(self):
         for stream in self._streams:
             stream.flush()
 
 
-#M: Redirects everything printed inside the block into a log file.
-#A: Swaps sys.stdout/sys.stderr for a Tee, and always restores them on exit so a
-#   failure in one seed cannot leave later seeds writing to a closed file.
-#   tee=True also mirrors to the original console (sequential runs); tee=False writes
-#   only to the file, so parallel seed workers don't interleave on the shared console.
 @contextlib.contextmanager
 def _tee_stdout(path, tee=True):
+    """Redirect output to a log, optionally mirroring it to the console."""
     if path is None:
         yield
         return
@@ -116,74 +64,6 @@ def _tee_stdout(path, tee=True):
             sys.stdout, sys.stderr = original_out, original_err
 
 
-#M: Measures the total size of the current gradient across all parameters.
-#A: Concatenates every .grad into one vector so ||g|| is comparable across runs.
-def _grad_norm(policy):
-    grads = [
-        p.grad.reshape(-1) for p in policy.parameters() if p.grad is not None
-    ]
-    if not grads:
-        return float("nan")
-    return float(torch.cat(grads).norm())
-
-
-#M: Copies the current action distribution so it survives the parameter update.
-#A: Rebuilds the distribution from detached parameters, because a live distribution
-#   holds references to the policy tensors and would change under optimizer.step().
-def _frozen_distribution(policy, flat_states):
-    with torch.no_grad():
-        dist = policy.distribution(flat_states)
-        if hasattr(dist, "scale"):
-            # Gaussian: mean and std.
-            return type(dist)(dist.loc.clone(), dist.scale.clone())
-        if hasattr(dist, "logits"):
-            # Categorical: class logits.
-            return type(dist)(logits=dist.logits.clone())
-    return None
-
-
-#M: Measures the policy's action distribution over a batch of states.
-#A: Averages entropy and std so exploration collapse is visible in the log.
-def _policy_stats(policy, flat_states):
-    with torch.no_grad():
-        dist = policy.distribution(flat_states)
-        entropy = dist.entropy()
-        if entropy.dim() > 1:
-            entropy = entropy.sum(-1)
-        mean_entropy = float(entropy.mean())
-        scale = getattr(dist, "scale", None)
-        mean_std = float(scale.mean()) if scale is not None else float("nan")
-    return mean_entropy, mean_std
-
-
-#M: Measures how far the update moved the policy, in distribution space.
-#A: Compares the pre- and post-update distributions at the same states, which is
-#   the scale-free measure of NPG step size (the quadratic estimate is unreliable).
-def _measure_kl(policy, flat_states, old_dist):
-    if old_dist is None:
-        return float("nan")
-    with torch.no_grad():
-        new_dist = policy.distribution(flat_states)
-        kl = kl_divergence(old_dist, new_dist)
-        if kl.dim() > 1:
-            kl = kl.sum(-1)
-        return float(kl.mean())
-
-
-#M: Appends one row of diagnostics to the seed's metrics CSV.
-#A: Opens in append mode per row so a killed run keeps everything written so far --
-#   the reward .npz is only written after the full loop completes.
-def _append_metrics_row(path, row):
-    write_header = not os.path.exists(path)
-    with open(path, "a", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=METRIC_FIELDS)
-        if write_header:
-            writer.writeheader()
-        writer.writerow(row)
-
-
-#M: Chooses the device used for policy and gradient calculations.
-#A: Auto mode tries CUDA, then Apple MPS, and finally CPU.
 def resolve_device(name=None) -> torch.device:
     """Resolve a device string to a torch.device.
 
@@ -198,13 +78,9 @@ def resolve_device(name=None) -> torch.device:
     return torch.device(name)
 
 
-#M: Prepares a function that can create one training environment.
-#A: AsyncVectorEnv needs a factory so every worker can create its own environment.
 def make_env(env_id: str, seed: int | None, horizon: int | None = None):
     # AsyncVectorEnv requires a factory (thunk) rather than an env instance
     # so each worker can construct its own isolated copy.
-    #M: Creates, limits, and seeds one environment inside a worker.
-    #A: Builds the environment only when AsyncVectorEnv starts that worker.
     def thunk():
         env = gym.make(env_id)
 
@@ -222,10 +98,8 @@ def make_env(env_id: str, seed: int | None, horizon: int | None = None):
     return thunk
 
 
-#M: Trains one policy using one random seed.
-#A: Repeatedly collects trajectories, computes the loss, updates the policy,
-#   records rewards, and saves the requested outputs.
 def run_single_training(cfg: dict):
+    """Train and persist one independently seeded policy."""
     output_dir = cfg.get("output_dir", "runs")
     os.makedirs(output_dir, exist_ok=True)
 
@@ -413,15 +287,11 @@ def run_single_training(cfg: dict):
                 f"samples/s: {samples_per_sec:.0f}"
             )
 
-            #M: Periodically snapshots the policy so training progress can be inspected later.
-            #A: Saves a numbered checkpoint every `checkpoint_interval` completed iterations.
             if save_snapshots and (iteration + 1) % checkpoint_interval == 0:
                 snapshot_path = os.path.join(snapshot_dir, f"snapshot_iter_{iteration + 1:06d}.pt")
                 torch.save(policy.state_dict(), snapshot_path)
 
-            #M: Periodically saves the reward curve collected so far.
-            #A: Overwrites the same file the final save uses, so a run that is killed
-            #   mid-seed still leaves a loadable (truncated) curve instead of nothing.
+            # Overwrite the same archive periodically so interrupted runs retain data.
             if checkpoint_interval > 0 and (iteration + 1) % checkpoint_interval == 0:
                 save_training_rewards(
                     output_dir,
@@ -475,8 +345,6 @@ def run_single_training(cfg: dict):
     return policy, training_rewards
 
 
-#M: Records a video using the strongest seed from a multi-seed run.
-#A: Chooses the best final-window reward, loads that seed's checkpoint, and replays it.
 def _record_best_seed_video(cfg, output_dir, all_training_rewards, seeds, final_window=100):
     """Record a video from the best-performing seed's checkpoint.
 
@@ -513,13 +381,8 @@ def _record_best_seed_video(cfg, output_dir, all_training_rewards, seeds, final_
     )
 
 
-#M: Trains one seed and returns its reward curve.
-#A: Builds the per-seed config and subdir, mirrors that seed's output to its own
-#   train.log, and delegates to single-seed training. tee=True also echoes to the
-#   console (sequential runs); parallel workers pass tee=False so the shared console
-#   is not interleaved. Shared by the sequential and parallel seed paths so both
-#   produce byte-identical per-seed layouts.
 def _train_one_seed(cfg: dict, seed: int, output_dir: str, tee: bool = True):
+    """Train one seed in an isolated output directory."""
     seed_cfg = dict(cfg)
     seed_cfg["seed"] = seed
     seed_cfg["record_video"] = False   # never record during per-seed training
@@ -545,9 +408,6 @@ def _train_one_seed(cfg: dict, seed: int, output_dir: str, tee: bool = True):
     return seed_rewards
 
 
-#M: Process-pool entry point that trains one seed in a worker process.
-#A: Returns (seed, rewards, error) so one seed's failure is reported to the parent
-#   instead of tearing down the whole pool. Output goes to the seed's log file only.
 def _seed_worker(packed):
     cfg, seed, output_dir = packed
     try:
@@ -557,12 +417,8 @@ def _seed_worker(packed):
         return seed, None, traceback.format_exc()
 
 
-#M: Decides how many seeds to train concurrently.
-#A: 'auto' (or None) targets ~2x the core count in total env workers -- env workers are
-#   IPC-bound, not CPU-bound, so mild oversubscription is fine -- bounded by the seed
-#   count. An explicit integer is clamped to [1, n_seeds]. 1 (the default) means the
-#   original sequential path runs untouched.
 def _resolve_seed_workers(seed_workers, n_seeds: int, n_envs: int) -> int:
+    """Resolve an explicit or automatic number of concurrent seed workers."""
     if seed_workers in (None, "auto"):
         cores = os.cpu_count() or 1
         target = max(1, (2 * cores) // max(1, n_envs))
@@ -571,9 +427,6 @@ def _resolve_seed_workers(seed_workers, n_seeds: int, n_envs: int) -> int:
     return min(max(n, 1), n_seeds)
 
 
-#M: Trains every seed one after another (the original, crash-resilient path).
-#A: After each seed, writes that seed's own file and rewrites the combined matrix, so
-#   an interrupted run still leaves usable outputs for the seeds that did finish.
 def _run_seeds_sequential(cfg: dict, seeds, output_dir: str):
     all_training_rewards = []
     for seed in seeds:
@@ -604,13 +457,8 @@ def _run_seeds_sequential(cfg: dict, seeds, output_dir: str):
     return all_training_rewards, list(seeds)
 
 
-#M: Trains up to n_workers seeds concurrently in separate processes.
-#A: Uses a 'spawn' pool so each worker is a fresh interpreter -- it re-imports vpg
-#   (thread pinning applies) before torch loads, avoiding fork-after-torch issues with
-#   the nested AsyncVectorEnv workers. Per-seed files are written as each seed finishes;
-#   results are reassembled into the original seed order (failed seeds dropped). The
-#   combined matrix is written once by the parent to avoid concurrent writers racing.
 def _run_seeds_parallel(cfg: dict, seeds, output_dir: str, n_workers: int):
+    """Train seeds in spawned processes and preserve requested seed order."""
     print(f"\n========== Training {len(seeds)} seeds, {n_workers} at a time ==========")
     print("Each seed's console output is redirected to its seed<N>/train.log")
 
@@ -642,10 +490,6 @@ def _run_seeds_parallel(cfg: dict, seeds, output_dir: str, n_workers: int):
     return ordered_rewards, completed_seeds
 
 
-#M: Repeats training for several seeds and keeps every reward curve.
-#A: Runs seeds sequentially (seed_workers <= 1) or concurrently, then saves the
-#   combined matrix and optionally records the best seed. Concurrency does not change
-#   any seed's result -- each seed is independent and self-seeded.
 def run_multiseed(cfg: dict):
     seeds = cfg.get("seeds", [cfg["seed"]])
     output_dir = cfg.get("output_dir", "runs")
@@ -682,8 +526,6 @@ def run_multiseed(cfg: dict):
               "(per-seed files saved).")
 
 
-#M: Starts single-seed or multi-seed training from a saved configuration.
-#A: Reads run_mode from the JSON config and calls the matching training function.
 def train_from_config(config_path="config.json"):
     cfg = load_config(config_path)
     run_mode = cfg.get("run_mode", "single")

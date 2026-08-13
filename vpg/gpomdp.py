@@ -1,34 +1,26 @@
-import numpy as np
 import math
+
+import numpy as np
 import torch
 from torch.distributions import Categorical, Normal
 from torch.func import functional_call, grad as _fgrad, vmap
-
-# Comment key: M says what the function does. A says how it works and why.
 
 # GPOMDP:
 #   ∇J(θ) ≈ (1/N) Σ_i Σ_t G_{i,t} · ∇ log π_θ(a_{i,t} | s_{i,t})
 # where G_{i,t} = Σ_{k>=t} γ^{k-t} r_{i,k} is the discounted return from step t.
 
 
-#M: Calculates the discounted future reward from every timestep.
-#A: Works backward through rewards by default because this is simple and stable.
 def compute_discounted_returns_matrix(
     rewards: torch.Tensor,
     gamma: float,
     implementation: str = "recursive",
 ) -> torch.Tensor:
-    """
-    rewards: [N, T]
+    """Compute reward-to-go for a ``[trajectories, timesteps]`` reward batch."""
 
-    returns[n, t] = r[n, t] + gamma * r[n, t+1] + ...
-    """
-    # Gamma must be a valid discount factor.
     if not 0.0 <= gamma <= 1.0:
         raise ValueError("gamma must be between 0 and 1")
 
     if implementation == "recursive":
-        # Start at the final reward and move backward.
         returns = torch.empty_like(rewards)
         running = torch.zeros(
             rewards.shape[0], dtype=rewards.dtype, device=rewards.device
@@ -39,11 +31,9 @@ def compute_discounted_returns_matrix(
         return returns
 
     if implementation == "vectorized":
-        # No future reward matters when gamma is zero or there is only one step.
         if gamma == 0.0 or rewards.shape[1] <= 1:
             return rewards.clone()
 
-        # Reject horizons where gamma powers become too small for the computer.
         last_exponent = (rewards.shape[1] - 1) * math.log(gamma)
         if last_exponent < math.log(torch.finfo(torch.float64).tiny):
             raise ValueError(
@@ -52,7 +42,8 @@ def compute_discounted_returns_matrix(
                 "use implementation='recursive'."
             )
 
-        # Calculate powers in float64, then restore the original type and device.
+        # MPS lacks float64 support, so this guarded backend computes on CPU and
+        # then returns the result to the caller's original device.
         orig_device = rewards.device
         work = rewards.detach().cpu().to(torch.float64)
         powers = gamma ** torch.arange(rewards.shape[1], dtype=torch.float64)
@@ -65,8 +56,6 @@ def compute_discounted_returns_matrix(
     )
 
 
-#M: Converts different-length trajectories into equal-size tensors.
-#A: Pads short episodes with zeros and uses a mask to mark real timesteps.
 def trajectories_to_tensors(trajectories, device=None):
     """
     Converts list[Trajectory] into padded tensors.
@@ -76,7 +65,6 @@ def trajectories_to_tensors(trajectories, device=None):
     rewards: [N, T_max]
     mask:    [N, T_max]
     """
-    # Pad all episodes to the length of the longest episode.
     n_trajectories = len(trajectories)
     max_len = max(len(traj.rewards) for traj in trajectories)
 
@@ -103,7 +91,6 @@ def trajectories_to_tensors(trajectories, device=None):
         dtype=np.float32,
     )
 
-    # Copy each episode into its row. Mask 1 means real data; 0 means padding.
     for i, traj in enumerate(trajectories):
         T = len(traj.rewards)
 
@@ -120,8 +107,6 @@ def trajectories_to_tensors(trajectories, device=None):
     )
 
 
-#M: Builds the GPOMDP loss used to update the policy.
-#A: Weights each action's log probability by its discounted return and ignores padding.
 def compute_gpomdp_loss(
     policy,
     trajectories,
@@ -140,10 +125,8 @@ def compute_gpomdp_loss(
     entropy_coeff > 0 adds an entropy bonus that prevents policy collapse.
     """
 
-    # Put all trajectories into one padded batch.
     states, actions, rewards, mask = trajectories_to_tensors(trajectories, device=device)
 
-    # Calculate discounted future rewards.
     returns = compute_discounted_returns_matrix(
         rewards=rewards,
         gamma=gamma,
@@ -153,38 +136,30 @@ def compute_gpomdp_loss(
     valid_returns = returns[mask.bool()]
 
     if center_returns:
-        # Centering often makes the gradient less noisy.
         returns = returns - valid_returns.mean()
 
     if normalize_returns:
-        # Scaling keeps returns at a more consistent size.
         returns = returns / (
             valid_returns.std() + 1e-8
         )
 
     n_trajectories, max_len = rewards.shape
 
-    # Flatten all timesteps so the policy handles one large batch.
     flat_states = states.reshape(n_trajectories * max_len, -1)
 
     if actions.ndim == 2:
-        # Discrete actions contain one integer per timestep.
         flat_actions = actions.reshape(n_trajectories * max_len).long()
     else:
-        # Continuous actions contain one vector per timestep.
         flat_actions = actions.reshape(n_trajectories * max_len, -1)
 
-    # Find the log probability of every sampled action.
     log_probs = policy.log_prob(flat_states, flat_actions)
     log_probs = log_probs.reshape(n_trajectories, max_len)
 
-    # High-return actions receive more weight. The mask removes padding.
     objective = (returns * log_probs * mask).sum(dim=1).mean()
     loss = -objective
 
     mean_entropy = None
     if entropy_coeff > 0:
-        # Entropy encourages the policy to keep exploring.
         dist = policy.distribution(flat_states)
         ent = dist.entropy()
         if ent.dim() > 1:
@@ -193,7 +168,6 @@ def compute_gpomdp_loss(
         mean_entropy = (ent * mask).sum() / mask.sum()
         loss = loss - entropy_coeff * mean_entropy
 
-    # Print shapes and values only when debugging.
     if debug:
         print("\n========== GPOMDP LOSS ==========")
         print(f"states shape  = {tuple(states.shape)}")
@@ -212,23 +186,16 @@ def compute_gpomdp_loss(
     return loss
 
 
-#M: Builds the damped Fisher matrix used by NPG.
-#A: Computes one score per valid sample, combines them as S^T S / M,
-#   and adds damping to make the matrix easier to solve.
 def _compute_empirical_fisher(policy, flat_states, flat_actions, flat_mask, damping: float):
     """
     F = (1/M) Σ_i ∇log π(a_i|s_i) · (∇log π(a_i|s_i))ᵀ  +  damping · I
 
     Returns F of shape [P, P] where P = total number of policy parameters.
     """
-    # 1. Collect the policy values.
-    # P is the total number of trainable parameters.
     params_dict = dict(policy.named_parameters())
     buffers_dict = dict(policy.named_buffers())
     P = sum(p.numel() for p in params_dict.values())
 
-    # 2. Keep only real timesteps.
-    # The mask removes zeros that were added when trajectories were padded.
     valid = flat_mask.bool()
     v_states = flat_states[valid].detach()
     v_actions = flat_actions[valid].detach()
@@ -237,8 +204,6 @@ def _compute_empirical_fisher(policy, flat_states, flat_actions, flat_mask, damp
         v_actions = v_actions.long()
     M = v_states.shape[0]
 
-    #M: Calculates one action's log probability at one state.
-    #A: Runs the policy with the supplied parameters and supports both action types.
     def _log_prob_fn(params, state, action):
         out = functional_call(
             policy,
@@ -253,26 +218,18 @@ def _compute_empirical_fisher(policy, flat_states, flat_actions, flat_mask, damp
         # Discrete policy: use the probability of the selected action.
         return Categorical(logits=out.squeeze(0)).log_prob(action.long())
 
-    # 3. Compute one score for every state-action sample.
-    # score = gradient of log probability with respect to all parameters.
-    # vmap repeats this calculation over the M samples.
+    # vmap produces one parameter-score vector per valid transition.
     per_sample_grads = vmap(
         _fgrad(_log_prob_fn, argnums=0),
         in_dims=(None, 0, 0),
     )(params_dict, v_states, v_actions)
 
-    # 4. Build score matrix S with shape [M, P].
-    # Each row is one sample; each column is one policy parameter.
     S = torch.cat([g.reshape(M, -1) for g in per_sample_grads.values()], dim=1)
 
-    # 5. Build the Fisher by averaging score outer products.
-    # Damping adds a small value to the diagonal so F is easier to solve.
     F = S.T @ S / M + damping * torch.eye(P, dtype=S.dtype, device=S.device)
     return F
 
 
-#M: Changes the normal policy gradient into a natural policy gradient.
-#A: Solves F * natural_gradient = gradient and puts the result back into .grad.
 def apply_npg_preconditioning(policy, trajectories, damping: float = 1e-2, device=None, debug: bool = False):
     """
     Preconditions the gradients in .grad with the inverse empirical Fisher:
@@ -280,7 +237,6 @@ def apply_npg_preconditioning(policy, trajectories, damping: float = 1e-2, devic
 
     Modifies .grad in-place; the caller uses SGD to apply the pure natural gradient step.
     """
-    # Flatten states, actions, and the padding mask.
     states, actions, _, mask = trajectories_to_tensors(trajectories, device=device)
     N, T = mask.shape
 
@@ -288,7 +244,6 @@ def apply_npg_preconditioning(policy, trajectories, damping: float = 1e-2, devic
     flat_actions = actions.reshape(N * T) if actions.ndim == 2 else actions.reshape(N * T, -1)
     flat_mask = mask.reshape(N * T)
 
-    # Build the Fisher from the sampled states and actions.
     F = _compute_empirical_fisher(policy, flat_states, flat_actions, flat_mask, damping)
 
     # Join every parameter's current gradient into one vector.

@@ -5,8 +5,6 @@ import gymnasium as gym
 import numpy as np
 import torch
 
-# Comment key: M says what the function does. A says how it works and why.
-
 
 @dataclass
 class Trajectory:
@@ -19,8 +17,6 @@ class Trajectory:
     executed_actions: List[np.ndarray] = field(default_factory=list)
 
 
-#M: Collects complete episodes from several environments running in parallel.
-#A: Batches active states through the policy and stores each worker's transitions separately.
 def collect_parallel_trajectories(
     envs,
     policy,
@@ -28,12 +24,7 @@ def collect_parallel_trajectories(
     clip_actions: bool = True,
     device=None,
 ) -> List[Trajectory]:
-    """
-    Collect n_trajectories_per_env complete episodes from each environment.
-
-    Total collected trajectories:
-        n_envs * n_trajectories_per_env
-    """
+    """Collect complete episodes from each worker in a vector environment."""
 
     all_trajectories = []
 
@@ -43,7 +34,6 @@ def collect_parallel_trajectories(
 
         n_envs = envs.num_envs
 
-        # Keep one trajectory for each environment worker.
         trajectories = [
             Trajectory(states=[], actions=[], rewards=[], dones=[])
             for _ in range(n_envs)
@@ -62,7 +52,6 @@ def collect_parallel_trajectories(
             full_actions = np.zeros(n_envs, dtype=np.int64)
 
         while not np.all(finished):
-            # Run the policy only for workers that are still active.
             active_indices = np.where(~finished)[0]
             active_states = states[active_indices]
             state_tensor = torch.tensor(active_states, dtype=torch.float32, device=device)
@@ -92,7 +81,6 @@ def collect_parallel_trajectories(
             next_states, rewards, terminated, truncated, _ = envs.step(full_actions)
             dones = np.logical_or(terminated, truncated)
 
-            # Save transitions only for active workers.
             for local_idx, env_idx in enumerate(active_indices):
                 trajectories[env_idx].states.append(states[env_idx].copy())
                 # Learning uses the original sampled action, not the clipped action.
@@ -109,7 +97,6 @@ def collect_parallel_trajectories(
             # Auto-reset states from finished workers are ignored on the next loop.
             states = next_states
 
-        # Add this round's completed episodes to the final list.
         all_trajectories.extend(trajectories)
 
     return all_trajectories

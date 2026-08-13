@@ -10,12 +10,10 @@ import numpy as np
 import optuna
 import torch
 
+from vpg.config import parse_hidden_sizes
 from vpg.data_collection import collect_parallel_trajectories
 from vpg.train import run_single_training, make_env
 
-
-#M: Runs an Optuna search over hyperparameters for GPOMDP or NPG.
-#A: Each trial trains a policy, evaluates it on fresh rollouts, and keeps the best config.
 
 # Seeds are spaced far apart (stride 10_000) so a trial's per-seed training-env range
 # (seed + [0, n_envs)) and its evaluation-env range never collide with each other or across
@@ -70,8 +68,6 @@ _GAMMA_CHOICES_BY_ALGORITHM_AND_ENV_PREFIX = {
 _DEFAULT_GAMMA_CHOICES = [0.95, 0.97, 0.99, 0.995, 0.999]  # fallback for envs not listed above
 
 
-#M: Chooses gamma values for one environment and algorithm.
-#A: Uses the environment-specific list when it exists; otherwise falls back to the generic grid.
 def _gamma_choices_for_env(env_id: str, algorithm: str):
     for prefix, choices in _GAMMA_CHOICES_BY_ALGORITHM_AND_ENV_PREFIX[algorithm].items():
         if env_id.startswith(prefix):
@@ -79,8 +75,6 @@ def _gamma_choices_for_env(env_id: str, algorithm: str):
     return _DEFAULT_GAMMA_CHOICES
 
 
-#M: Builds the full grid-search space for one tuning run.
-#A: Combines the fixed parameter lists into a dictionary that Optuna can sample from.
 def _grid_search_space(env_id: str, algorithm: str) -> dict:
     space = {
         "lr": _LR_GRID[algorithm],
@@ -95,17 +89,6 @@ def _grid_search_space(env_id: str, algorithm: str) -> dict:
     return space
 
 
-#M: Converts a comma-separated string like "32,32" into a list of layer sizes.
-#A: This keeps the CLI input simple while still giving the training code a normal Python list.
-def parse_hidden_sizes(value: str):
-    sizes = [int(v.strip()) for v in value.split(",") if v.strip()]
-    if not sizes or any(size <= 0 for size in sizes):
-        raise ValueError("hidden_sizes must contain positive integers, e.g. '32,32'")
-    return sizes
-
-
-#M: Checks that the tuning arguments make sense.
-#A: Rejects invalid counts and negative values early so bad runs fail fast.
 def _validate_args(args) -> None:
     for name in ("n_iterations", "n_envs", "n_trajectories", "n_tuning_seeds"):
         if getattr(args, name) <= 0:
@@ -124,8 +107,6 @@ def _validate_args(args) -> None:
 # costs and destabilize damping. NPG return normalization remains fixed on because the raw
 # long-horizon return scale made its unconstrained update numerically diverge. GPOMDP return
 # normalization and both algorithms' entropy coefficients are searched.
-#M: Creates the base training config for a trial.
-#A: This holds all the fixed settings shared across trials, and only the searched values vary.
 def _base_cfg(args, algorithm: str) -> dict:
     use_npg = algorithm == "npg"
     return {
@@ -154,8 +135,6 @@ def _base_cfg(args, algorithm: str) -> dict:
     }
 
 
-#M: Draws one hyperparameter setting from the search grid for a trial.
-#A: Each search dimension is sampled from its allowed list, and the resulting config is used for training.
 def _suggest_cfg(trial: optuna.Trial, args, algorithm: str) -> dict:
     cfg = _base_cfg(args, algorithm)
 
@@ -178,8 +157,6 @@ def _suggest_cfg(trial: optuna.Trial, args, algorithm: str) -> dict:
     return cfg
 
 
-#M: Scores the trained policy on fresh rollouts.
-#A: Training rewards are noisy and optimistic, so this uses a separate evaluation batch to estimate real performance.
 def _evaluate_policy(policy, cfg: dict, seed: int) -> float:
     """Runs a fresh batch of rollouts with the trained policy and returns the mean episode
     reward. Deliberately separate from the training reward curve: training rewards are the
@@ -208,8 +185,6 @@ def _evaluate_policy(policy, cfg: dict, seed: int) -> float:
     return float(np.mean([sum(traj.rewards) for traj in trajectories]))
 
 
-#M: Defines the Optuna objective for one trial.
-#A: It trains the policy for each tuning seed, evaluates it, and returns the mean score.
 def _objective(trial: optuna.Trial, args, algorithm: str) -> float:
     cfg = _suggest_cfg(trial, args, algorithm)
 
@@ -251,8 +226,6 @@ def _objective(trial: optuna.Trial, args, algorithm: str) -> float:
     return mean_score
 
 
-#M: Rebuilds the full config for the best trial.
-#A: The winning search params alone are not enough because several fixed defaults are also important.
 def _recommended_config(args, algorithm: str, best_params: dict) -> dict:
     """Build the complete config represented by the winning trial.
 
@@ -271,8 +244,6 @@ def _recommended_config(args, algorithm: str, best_params: dict) -> dict:
     return cfg
 
 
-#M: Builds the shell command for replaying the winning run.
-#A: It writes out the exact flags needed to reproduce the tuned config outside the search loop.
 def _run_command(args, algorithm: str, best_params: dict) -> str:
     """Return a run.py command that overrides every fixed setting used during tuning."""
     hidden_sizes = ",".join(str(size) for size in args.hidden_sizes)
@@ -310,8 +281,6 @@ def _run_command(args, algorithm: str, best_params: dict) -> str:
     return " ".join(parts)
 
 
-#M: Defines the CLI for the tuner.
-#A: This exposes the search budget, environment, and output settings that the tuning loop needs.
 def build_arg_parser():
     parser = argparse.ArgumentParser(
         description="Optuna hyperparameter search over GPOMDP or NPG training configs.",
@@ -396,8 +365,6 @@ def build_arg_parser():
     return parser
 
 
-#M: Runs the full Optuna search and saves the best result.
-#A: It creates the study, explores the grid, and writes a JSON file with the winning config.
 def run_search(args) -> dict:
     """Runs one full Optuna search (one env, one algorithm) and returns the result dict.
 
