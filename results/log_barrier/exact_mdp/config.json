@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "methods": [
+    "reward_only",
+    "policy_fisher_logdet",
+    "joint_fisher_logdet"
+  ],
+  "initialization": "adverse",
+  "alpha": 0.05,
+  "beta": 0.1,
+  "updates": 2000,
+  "gamma": 0.99,
+  "dtype": "float64",
+  "occupancy": "normalized discounted occupancy including absorbing terminal state",
+  "barrier": "0.5 * logdet of the exact reduced Fisher"
+}

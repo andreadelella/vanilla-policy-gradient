@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "source": "results\\log_barrier\\acrobot\\checkpoints",
+  "seeds": [
+    401,
+    402,
+    403,
+    404,
+    405
+  ],
+  "methods": [
+    "reward_only",
+    "log_barrier"
+  ],
+  "checkpoint_directories": {
+    "reward_only": "reward_only",
+    "log_barrier": "logbarrier_fixed"
+  },
+  "checkpoint_updates": [
+    0,
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900,
+    1000
+  ],
+  "episodes_per_checkpoint": 1,
+  "maximum_states_per_checkpoint": 32,
+  "state_sampling": "fresh deterministic on-policy rollouts; evenly spaced truncation when necessary",
+  "action_sampling": "none; all categorical actions enumerated exactly",
+  "damping": 0.0,
+  "spectral_floor": false
+}

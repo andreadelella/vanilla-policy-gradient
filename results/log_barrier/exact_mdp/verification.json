@@ -1,0 +1,15 @@
+{
+  "all_passed": true,
+  "joint_barrier_gradient_finite": true,
+  "joint_decomposition_error": 2.168404344971009e-19,
+  "joint_enumeration_error": 4.336808689942018e-19,
+  "joint_minimum_eigenvalue": 9.020530681081931e-05,
+  "joint_symmetry_error": 0.0,
+  "occupancy_sum_error": 0.0,
+  "policy_barrier_gradient_finite": true,
+  "policy_minimum_eigenvalue": 9.020530681081931e-05,
+  "policy_symmetry_error": 0.0,
+  "reward_gradient_error": 3.469446951953614e-18,
+  "smoke_spectrum_rows": 22,
+  "smoke_trajectory_rows": 11
+}
