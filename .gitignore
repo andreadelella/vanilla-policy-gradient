@@ -5,3 +5,4 @@ __pycache__/
 /runs/
 /output/
 /fisher_analysis/results/
+/results/log_barrier/acrobot/new_runs/
