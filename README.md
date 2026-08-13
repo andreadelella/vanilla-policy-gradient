@@ -13,9 +13,9 @@ fisher_analysis/     Fixed-policy rollouts, streaming Fisher construction,
                      spectral metrics, plotting, and experiment orchestration.
 log_barrier/         Exact finite-MDP policy/joint Fisher experiment and the
                      sampled categorical Acrobot validation.
-results/figures/     Final plots used to present the experiments.
-results/csv/         Compact Fisher summaries and per-iteration statistics.
-results/runs_new/    NPG width-comparison figures, videos, and compact metrics.
+results/figures/     Fixed-policy Fisher eigenspectrum plots.
+results/csv/         Fixed-policy Fisher summaries and iteration statistics.
+results/runs_new/    Current NPG width-comparison figures, videos, and metrics.
 results/log_barrier/ Compact retained outputs from the log-barrier experiments.
 run.py               Training command.
 analysis.py          Reward-curve analysis command.
