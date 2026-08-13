@@ -47,14 +47,18 @@ python run.py
 Examples:
 
 ```bash
-python run.py --env_id CartPole-v1 --algorithms gpomdp
-python run.py --env_id Hopper-v5 --algorithms npg
+python run.py --env_id CartPole-v1 --algorithm gpomdp
+python run.py --env_id Hopper-v5 --algorithm npg
 python run.py --run_mode multiseed --seeds 23 24 25 26 27
 ```
 
 GPOMDP estimates the policy gradient from sampled trajectories. NPG uses the
 same gradient and preconditions it with the damped empirical Fisher matrix.
 Training outputs are written to `runs/`, which is intentionally ignored.
+
+The checked-in `config.json` supplies CLI defaults. Explicit command-line
+arguments take precedence. The default run is GPOMDP on CartPole; select NPG
+with `--algorithm npg`.
 
 ## Fisher eigenspectrum analysis
 
