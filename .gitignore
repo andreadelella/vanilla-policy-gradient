@@ -6,3 +6,4 @@ __pycache__/
 /output/
 /fisher_analysis/results/
 /results/log_barrier/acrobot/new_runs/
+/results/log_barrier/lunar_barrier/reliability/

@@ -1,0 +1,346 @@
+{
+  "barrier_ranking": [
+    {
+      "beta": 20.0,
+      "evaluation_std": 17.682652740053026,
+      "handoff_fraction": 0.05,
+      "lower_tail_score": -11.550710532575776,
+      "mean_evaluation_return": -5.8990352937278345,
+      "mean_paired_difference": 18.437999954214668,
+      "seed_count": 5
+    },
+    {
+      "beta": 2.0,
+      "evaluation_std": 16.041512768923514,
+      "handoff_fraction": 0.25,
+      "lower_tail_score": -17.829992619230907,
+      "mean_evaluation_return": -7.936655703945486,
+      "mean_paired_difference": 16.400379543997012,
+      "seed_count": 5
+    },
+    {
+      "beta": 5.0,
+      "evaluation_std": 12.61496501777563,
+      "handoff_fraction": 0.05,
+      "lower_tail_score": -22.287652854703225,
+      "mean_evaluation_return": -12.159416199252185,
+      "mean_paired_difference": 12.17761904869032,
+      "seed_count": 5
+    },
+    {
+      "beta": 10.0,
+      "evaluation_std": 22.573567803787366,
+      "handoff_fraction": 0.05,
+      "lower_tail_score": -25.64712245741603,
+      "mean_evaluation_return": -8.660207426183037,
+      "mean_paired_difference": 15.676827821759463,
+      "seed_count": 5
+    },
+    {
+      "beta": 5.0,
+      "evaluation_std": 28.469220486051878,
+      "handoff_fraction": 0.1,
+      "lower_tail_score": -32.42493154586664,
+      "mean_evaluation_return": -25.540135980265994,
+      "mean_paired_difference": -1.203100732323493,
+      "seed_count": 5
+    },
+    {
+      "beta": 10.0,
+      "evaluation_std": 30.29995342790745,
+      "handoff_fraction": 0.1,
+      "lower_tail_score": -32.807441061886834,
+      "mean_evaluation_return": -26.90115494258124,
+      "mean_paired_difference": -2.5641196946387352,
+      "seed_count": 5
+    },
+    {
+      "beta": 40.0,
+      "evaluation_std": 24.004951416754174,
+      "handoff_fraction": 0.25,
+      "lower_tail_score": -35.54026763060843,
+      "mean_evaluation_return": -40.0601342196014,
+      "mean_paired_difference": -15.723098971658896,
+      "seed_count": 5
+    },
+    {
+      "beta": 5.0,
+      "evaluation_std": 31.4845375108024,
+      "handoff_fraction": 0.25,
+      "lower_tail_score": -38.635928023500526,
+      "mean_evaluation_return": -24.96394582251261,
+      "mean_paired_difference": -0.6269105745701097,
+      "seed_count": 5
+    },
+    {
+      "beta": 20.0,
+      "evaluation_std": 25.0391579855353,
+      "handoff_fraction": 0.25,
+      "lower_tail_score": -38.65303088149655,
+      "mean_evaluation_return": -28.279728162659275,
+      "mean_paired_difference": -3.9426929147167713,
+      "seed_count": 5
+    },
+    {
+      "beta": 20.0,
+      "evaluation_std": 21.526278474231646,
+      "handoff_fraction": 0.1,
+      "lower_tail_score": -39.81547606633634,
+      "mean_evaluation_return": -19.08045329867876,
+      "mean_paired_difference": 5.256581949263742,
+      "seed_count": 5
+    },
+    {
+      "beta": 2.0,
+      "evaluation_std": 31.80008209911202,
+      "handoff_fraction": 0.05,
+      "lower_tail_score": -40.215212316839,
+      "mean_evaluation_return": -15.899824791015075,
+      "mean_paired_difference": 8.437210456927428,
+      "seed_count": 5
+    },
+    {
+      "beta": 40.0,
+      "evaluation_std": 22.036207884093017,
+      "handoff_fraction": 0.1,
+      "lower_tail_score": -44.29437685391342,
+      "mean_evaluation_return": -34.41788116657296,
+      "mean_paired_difference": -10.080845918630457,
+      "seed_count": 5
+    },
+    {
+      "beta": 10.0,
+      "evaluation_std": 21.34655407204653,
+      "handoff_fraction": 0.25,
+      "lower_tail_score": -46.647855545049936,
+      "mean_evaluation_return": -31.452331615085928,
+      "mean_paired_difference": -7.115296367143422,
+      "seed_count": 5
+    },
+    {
+      "beta": 2.0,
+      "evaluation_std": 43.66035101780196,
+      "handoff_fraction": 0.1,
+      "lower_tail_score": -47.49921547412815,
+      "mean_evaluation_return": -12.027828288586985,
+      "mean_paired_difference": 12.309206959355517,
+      "seed_count": 5
+    },
+    {
+      "beta": 40.0,
+      "evaluation_std": 44.34086216993763,
+      "handoff_fraction": 0.05,
+      "lower_tail_score": -65.68261712722133,
+      "mean_evaluation_return": -28.373463679738894,
+      "mean_paired_difference": -4.03642843179639,
+      "seed_count": 5
+    }
+  ],
+  "base_ranking": [
+    {
+      "center_returns": true,
+      "episodes_per_update": 8,
+      "evaluation_std": 30.921625788477478,
+      "gamma": 0.97,
+      "learning_rate": 0.003,
+      "lower_tail_score": -36.294327992628574,
+      "mean_evaluation_return": -24.337035247942502,
+      "normalize_returns": true,
+      "seed_count": 5
+    },
+    {
+      "center_returns": true,
+      "episodes_per_update": 8,
+      "evaluation_std": 23.402808932222815,
+      "gamma": 0.99,
+      "learning_rate": 0.003,
+      "lower_tail_score": -36.83288076706854,
+      "mean_evaluation_return": -20.726626029898892,
+      "normalize_returns": true,
+      "seed_count": 5
+    },
+    {
+      "center_returns": true,
+      "episodes_per_update": 8,
+      "evaluation_std": 13.37766793457639,
+      "gamma": 0.97,
+      "learning_rate": 0.003,
+      "lower_tail_score": -47.88038828863009,
+      "mean_evaluation_return": -40.87519354519485,
+      "normalize_returns": false,
+      "seed_count": 5
+    },
+    {
+      "center_returns": true,
+      "episodes_per_update": 8,
+      "evaluation_std": 22.152180090964563,
+      "gamma": 0.99,
+      "learning_rate": 0.003,
+      "lower_tail_score": -59.04083396868008,
+      "mean_evaluation_return": -54.87325695371627,
+      "normalize_returns": false,
+      "seed_count": 5
+    },
+    {
+      "center_returns": true,
+      "episodes_per_update": 4,
+      "evaluation_std": 23.63530848569905,
+      "gamma": 0.99,
+      "learning_rate": 0.003,
+      "lower_tail_score": -70.90481259016323,
+      "mean_evaluation_return": -64.06224916540587,
+      "normalize_returns": true,
+      "seed_count": 5
+    },
+    {
+      "center_returns": true,
+      "episodes_per_update": 4,
+      "evaluation_std": 15.831976725829671,
+      "gamma": 0.97,
+      "learning_rate": 0.003,
+      "lower_tail_score": -75.16850975794624,
+      "mean_evaluation_return": -69.54841182053504,
+      "normalize_returns": true,
+      "seed_count": 5
+    },
+    {
+      "center_returns": true,
+      "episodes_per_update": 4,
+      "evaluation_std": 25.704668212836506,
+      "gamma": 0.97,
+      "learning_rate": 0.003,
+      "lower_tail_score": -88.82287781852042,
+      "mean_evaluation_return": -75.15962232029457,
+      "normalize_returns": false,
+      "seed_count": 5
+    },
+    {
+      "center_returns": true,
+      "episodes_per_update": 4,
+      "evaluation_std": 23.652757398320233,
+      "gamma": 0.99,
+      "learning_rate": 0.003,
+      "lower_tail_score": -102.1068302472255,
+      "mean_evaluation_return": -90.86553809042871,
+      "normalize_returns": false,
+      "seed_count": 5
+    },
+    {
+      "center_returns": true,
+      "episodes_per_update": 8,
+      "evaluation_std": 15.810767425635172,
+      "gamma": 0.99,
+      "learning_rate": 0.001,
+      "lower_tail_score": -137.23023727132346,
+      "mean_evaluation_return": -126.06174397287853,
+      "normalize_returns": true,
+      "seed_count": 5
+    },
+    {
+      "center_returns": true,
+      "episodes_per_update": 8,
+      "evaluation_std": 14.872600641570408,
+      "gamma": 0.97,
+      "learning_rate": 0.001,
+      "lower_tail_score": -140.29661277795023,
+      "mean_evaluation_return": -130.15289902018162,
+      "normalize_returns": true,
+      "seed_count": 5
+    },
+    {
+      "center_returns": true,
+      "episodes_per_update": 8,
+      "evaluation_std": 16.447046527156203,
+      "gamma": 0.99,
+      "learning_rate": 0.001,
+      "lower_tail_score": -142.542951377941,
+      "mean_evaluation_return": -127.83171421521828,
+      "normalize_returns": false,
+      "seed_count": 5
+    },
+    {
+      "center_returns": true,
+      "episodes_per_update": 4,
+      "evaluation_std": 13.389402826148158,
+      "gamma": 0.99,
+      "learning_rate": 0.001,
+      "lower_tail_score": -150.17564513783975,
+      "mean_evaluation_return": -139.65537738213203,
+      "normalize_returns": false,
+      "seed_count": 5
+    },
+    {
+      "center_returns": true,
+      "episodes_per_update": 4,
+      "evaluation_std": 21.904384008301072,
+      "gamma": 0.97,
+      "learning_rate": 0.001,
+      "lower_tail_score": -154.0216481668528,
+      "mean_evaluation_return": -146.48071044675112,
+      "normalize_returns": true,
+      "seed_count": 5
+    },
+    {
+      "center_returns": true,
+      "episodes_per_update": 8,
+      "evaluation_std": 21.178878995081416,
+      "gamma": 0.97,
+      "learning_rate": 0.001,
+      "lower_tail_score": -161.09304430452306,
+      "mean_evaluation_return": -140.30480086949746,
+      "normalize_returns": false,
+      "seed_count": 5
+    },
+    {
+      "center_returns": true,
+      "episodes_per_update": 4,
+      "evaluation_std": 22.07053201028518,
+      "gamma": 0.97,
+      "learning_rate": 0.001,
+      "lower_tail_score": -163.0038293990216,
+      "mean_evaluation_return": -150.20888975239538,
+      "normalize_returns": false,
+      "seed_count": 5
+    },
+    {
+      "center_returns": true,
+      "episodes_per_update": 4,
+      "evaluation_std": 24.611231208634617,
+      "gamma": 0.99,
+      "learning_rate": 0.001,
+      "lower_tail_score": -165.11288150955608,
+      "mean_evaluation_return": -145.19142623012095,
+      "normalize_returns": true,
+      "seed_count": 5
+    }
+  ],
+  "fixed": {
+    "evaluation_episodes": 32,
+    "hidden_sizes": [
+      8,
+      8
+    ]
+  },
+  "lower_quantile": 0.25,
+  "retained_run_count": 215,
+  "selected": {
+    "beta": 20.0,
+    "center_returns": true,
+    "episodes_per_update": 8,
+    "gamma": 0.97,
+    "handoff_fraction": 0.05,
+    "learning_rate": 0.003,
+    "normalize_returns": true
+  },
+  "smoke_budget": {
+    "horizon": 1000,
+    "updates": 200
+  },
+  "smoke_seeds": [
+    101,
+    102,
+    103,
+    104,
+    105
+  ]
+}

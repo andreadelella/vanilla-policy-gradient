@@ -196,6 +196,44 @@ only reward-only GPOMDP and the barrier kept active for the complete training
 run. Retained result files record the exact seeds, coefficient, checkpoints, and
 state-bank construction used to produce each figure.
 
+### Lunar-Barrier paired reliability study
+
+The Acrobot categorical barrier is also available for discrete
+`LunarLander-v3`. Run hyperparameter screening on a small, reserved seed set:
+
+```bash
+python -m log_barrier.lunar_barrier.run smoke \
+  --updates 200 \
+  --workers 4
+```
+
+The smoke phase is staged to avoid a full Cartesian explosion. Stage 1 tunes
+learning rate (`0.001`, `0.003`), gamma (`0.97`, `0.99`), episodes per update
+(`4`, `8`), and centered versus centered-normalized returns. Stage 2 tunes beta
+(`2`, `5`, `10`, `20`, `40`) and barrier handoff fraction (`0.05`, `0.10`,
+`0.25`) on the selected Stage 1 configuration. Only the Acrobot-comparable
+`[8, 8]` network and 32 evaluation episodes are fixed. Candidates are ranked by
+the 25th percentile of held-out stochastic evaluation return, with mean return
+and paired improvement as tie breakers. The beta grid brackets LunarLander's
+selected normalized-return gradient scale and is not copied from Acrobot. Run
+the confirmatory experiment on 200 new, paired seeds:
+
+```bash
+python -m log_barrier.lunar_barrier.run reliability \
+  --selection results/log_barrier/lunar_barrier/smoke/selection.json \
+  --updates 1000 \
+  --n-seeds 200 \
+  --workers 4
+```
+
+Each seed uses the same initialization and environment seed schedule for
+reward-only and barrier training. Evaluation also uses common environment seeds
+and common action uniforms across 32 episodes per trained policy. Runs are saved
+independently and resumed automatically. `reliability_summary.json` reports the
+paired mean difference and bootstrap confidence interval, win rate, solved rate,
+catastrophic-failure rate, and exact paired McNemar test. Smoke and confirmatory
+seed sets are required to be disjoint.
+
 ## Tests
 
 Run the complete repository suite with:
