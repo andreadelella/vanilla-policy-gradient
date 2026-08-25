@@ -15,6 +15,10 @@ from dataclasses import asdict, dataclass
 
 import numpy as np
 import torch
+from torch.func import functional_call, grad_and_value, vmap
+
+
+SCORE_BACKENDS = ("vmap", "loop")
 
 
 @dataclass(frozen=True)
@@ -23,6 +27,7 @@ class FisherLogDetDiagnostics:
     trajectory_count: int
     gradient_trajectory_count: int
     separate_fisher_batch: bool
+    score_backend: str
     rank: int
     minimum_eigenvalue: float
     maximum_eigenvalue: float
@@ -46,6 +51,7 @@ class FisherInverseEstimate:
     maximum_eigenvalue: float
     mu: float
     logdet_margin: float
+    score_backend: str
 
     def to_dict(self) -> dict:
         return {
@@ -56,6 +62,7 @@ class FisherInverseEstimate:
             "maximum_eigenvalue": self.maximum_eigenvalue,
             "mu": self.mu,
             "logdet_margin": self.logdet_margin,
+            "score_backend": self.score_backend,
         }
 
 
@@ -150,7 +157,7 @@ def _detached_spectrum(
     return eigenvalues, rank
 
 
-def _trajectory_scores(
+def _trajectory_scores_loop(
     policy: torch.nn.Module,
     trajectories,
     named_parameters: tuple[tuple[str, torch.nn.Parameter], ...],
@@ -205,11 +212,147 @@ def _trajectory_scores(
     return trajectory_log_probs, scores
 
 
+class _PolicyLogProbability(torch.nn.Module):
+    """Expose ``policy.log_prob`` as ``forward`` for ``functional_call``."""
+
+    def __init__(self, policy: torch.nn.Module) -> None:
+        super().__init__()
+        self.policy = policy
+
+    def forward(self, states: torch.Tensor, actions: torch.Tensor) -> torch.Tensor:
+        return self.policy.log_prob(states, actions)
+
+
+def _padded_trajectory_tensors(
+    trajectories,
+    *,
+    dtype: torch.dtype,
+    device: torch.device,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Pad complete trajectories for batched score computation."""
+
+    if not trajectories:
+        raise ValueError("at least one trajectory is required")
+    for index, trajectory in enumerate(trajectories):
+        if not trajectory.states or not trajectory.actions:
+            raise ValueError(f"trajectory {index} is empty")
+        if len(trajectory.states) != len(trajectory.actions):
+            raise ValueError(f"trajectory {index} has mismatched states and actions")
+
+    trajectory_count = len(trajectories)
+    maximum_length = max(len(trajectory.states) for trajectory in trajectories)
+    state_shape = np.asarray(trajectories[0].states[0]).shape
+    action_example = np.asarray(trajectories[0].actions[0])
+    action_shape = action_example.shape
+    states = np.zeros(
+        (trajectory_count, maximum_length, *state_shape),
+        dtype=np.float64 if dtype == torch.float64 else np.float32,
+    )
+    actions = np.zeros(
+        (trajectory_count, maximum_length, *action_shape),
+        dtype=action_example.dtype,
+    )
+    mask = np.zeros((trajectory_count, maximum_length), dtype=np.bool_)
+    for index, trajectory in enumerate(trajectories):
+        length = len(trajectory.states)
+        states[index, :length] = np.asarray(trajectory.states)
+        actions[index, :length] = np.asarray(trajectory.actions)
+        mask[index, :length] = True
+    return (
+        torch.as_tensor(states, dtype=dtype, device=device),
+        torch.as_tensor(actions, device=device),
+        torch.as_tensor(mask, device=device),
+    )
+
+
+def _trajectory_scores_vmap(
+    policy: torch.nn.Module,
+    trajectories,
+    named_parameters: tuple[tuple[str, torch.nn.Parameter], ...],
+    device: torch.device,
+    *,
+    create_graph: bool,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Vectorize complete-trajectory parameter scores over a padded batch."""
+
+    dtype = named_parameters[0][1].dtype
+    states, actions, mask = _padded_trajectory_tensors(
+        trajectories,
+        dtype=dtype,
+        device=device,
+    )
+    wrapper = _PolicyLogProbability(policy)
+    parameters = {
+        f"policy.{name}": parameter if create_graph else parameter.detach()
+        for name, parameter in named_parameters
+    }
+    buffers = {
+        f"policy.{name}": buffer.detach()
+        for name, buffer in policy.named_buffers()
+    }
+
+    def trajectory_log_probability(functional_parameters, states_i, actions_i, mask_i):
+        log_probabilities = functional_call(
+            wrapper,
+            {**functional_parameters, **buffers},
+            (states_i, actions_i),
+        )
+        return (log_probabilities * mask_i).sum()
+
+    score_function = grad_and_value(trajectory_log_probability, argnums=0)
+    per_trajectory_gradients, trajectory_log_probs = vmap(
+        score_function,
+        in_dims=(None, 0, 0, 0),
+    )(parameters, states, actions, mask)
+    scores = torch.cat(
+        [
+            per_trajectory_gradients[f"policy.{name}"].reshape(len(trajectories), -1)
+            for name, _ in named_parameters
+        ],
+        dim=1,
+    )
+    if not create_graph:
+        trajectory_log_probs = trajectory_log_probs.detach()
+        scores = scores.detach()
+    if not bool(torch.isfinite(scores).all()):
+        raise FloatingPointError("non-finite trajectory policy scores")
+    return trajectory_log_probs, scores
+
+
+def _trajectory_scores(
+    policy: torch.nn.Module,
+    trajectories,
+    named_parameters: tuple[tuple[str, torch.nn.Parameter], ...],
+    device: torch.device,
+    *,
+    create_graph: bool,
+    backend: str,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    if backend == "vmap":
+        return _trajectory_scores_vmap(
+            policy,
+            trajectories,
+            named_parameters,
+            device,
+            create_graph=create_graph,
+        )
+    if backend == "loop":
+        return _trajectory_scores_loop(
+            policy,
+            trajectories,
+            named_parameters,
+            device,
+            create_graph=create_graph,
+        )
+    raise ValueError(f"score backend must be one of {SCORE_BACKENDS}, got {backend!r}")
+
+
 def estimate_trajectory_fisher_inverse(
     policy: torch.nn.Module,
     trajectories,
     *,
     mu: float,
+    score_backend: str = "vmap",
     device: torch.device | str | None = None,
 ) -> FisherInverseEstimate:
     """Estimate and invert ``F_hat - mu I`` without retaining derivative graphs."""
@@ -234,6 +377,7 @@ def estimate_trajectory_fisher_inverse(
         named_parameters,
         device,
         create_graph=False,
+        backend=score_backend,
     )
     fisher_scores = fisher_scores.detach().to(torch.float64)
     trajectory_count, parameter_count = fisher_scores.shape
@@ -271,6 +415,7 @@ def estimate_trajectory_fisher_inverse(
         maximum_eigenvalue=maximum_eigenvalue,
         mu=float(mu),
         logdet_margin=logdet_margin,
+        score_backend=score_backend,
     )
 
 
@@ -280,6 +425,7 @@ def trajectory_fisher_logdet_surrogate(
     *,
     mu: float,
     fisher_trajectories=None,
+    score_backend: str = "vmap",
     device: torch.device | str | None = None,
 ) -> tuple[torch.Tensor, FisherLogDetDiagnostics]:
     """Return the differentiable Loss-Function (1) barrier surrogate.
@@ -309,6 +455,7 @@ def trajectory_fisher_logdet_surrogate(
         policy,
         fisher_samples,
         mu=mu,
+        score_backend=score_backend,
         device=device,
     )
     trajectory_log_probs, scores = _trajectory_scores(
@@ -317,6 +464,7 @@ def trajectory_fisher_logdet_surrogate(
         named_parameters,
         device,
         create_graph=True,
+        backend=score_backend,
     )
     scores = scores.to(torch.float64)
     trace_inverse = torch.trace(estimate.inverse_margin)
@@ -335,6 +483,7 @@ def trajectory_fisher_logdet_surrogate(
         trajectory_count=estimate.trajectory_count,
         gradient_trajectory_count=len(trajectories),
         separate_fisher_batch=separate_fisher_batch,
+        score_backend=score_backend,
         rank=estimate.rank,
         minimum_eigenvalue=estimate.minimum_eigenvalue,
         maximum_eigenvalue=estimate.maximum_eigenvalue,

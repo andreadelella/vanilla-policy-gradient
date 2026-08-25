@@ -217,8 +217,10 @@ preserving the complete policy family. The `[8, 8]` reference-logit policy has
 Each update uses a large, independent batch to estimate `F_hat` and the normal
 eight-trajectory batch for GPOMDP and the outer Loss-Function (1) expectation.
 Fisher construction and factorization use float64. Only the small outer batch
-retains second-order autograd graphs. Environment-step reporting includes both
-batches. The implementation does not use damping, eigenvalue clipping, a
+retains second-order autograd graphs. Per-trajectory scores are vectorized with
+`torch.func.vmap` by default; `--fisher-score-backend loop` keeps the reference
+implementation available for verification. Environment-step reporting includes
+both batches. The implementation does not use damping, eigenvalue clipping, a
 pseudoinverse, or a pseudodeterminant.
 
 Run the mandatory Acrobot feasibility preflight before attempting training:

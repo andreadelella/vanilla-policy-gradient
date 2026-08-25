@@ -8,7 +8,11 @@ import gymnasium as gym
 import numpy as np
 import torch
 
-from fisher_log_barrier import ReferenceMLPSoftmaxPolicy, trajectory_fisher_logdet_surrogate
+from fisher_log_barrier import (
+    SCORE_BACKENDS,
+    ReferenceMLPSoftmaxPolicy,
+    trajectory_fisher_logdet_surrogate,
+)
 from vpg.data_collection import collect_parallel_trajectories
 from vpg.gpomdp import compute_gpomdp_loss, trajectories_to_tensors
 from vpg.policy import build_policy
@@ -40,6 +44,7 @@ class AcrobotConfig:
     beta: float = 546.4135158976487
     fisher_mu: float = 1e-10
     fisher_beta: float = 1.0
+    fisher_score_backend: str = "vmap"
     policy_parameterization: str = "auto"
     device: str = "cpu"
 
@@ -58,6 +63,8 @@ class AcrobotConfig:
             )
         if not np.isfinite(self.fisher_mu) or self.fisher_mu < 0.0:
             raise ValueError("fisher_mu must be finite and non-negative")
+        if self.fisher_score_backend not in SCORE_BACKENDS:
+            raise ValueError(f"fisher_score_backend must be one of {SCORE_BACKENDS}")
         if self.policy_parameterization not in POLICY_PARAMETERIZATIONS:
             raise ValueError(
                 "policy_parameterization must be auto, standard, or reference"
@@ -238,6 +245,7 @@ def train(config: AcrobotConfig, checkpoint_dir=None) -> tuple[list[dict], list[
                     trajectories,
                     mu=config.fisher_mu,
                     fisher_trajectories=fisher_trajectories,
+                    score_backend=config.fisher_score_backend,
                     device=device,
                 )
                 loss = loss - fisher_beta * fisher_surrogate

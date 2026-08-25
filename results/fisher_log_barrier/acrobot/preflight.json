@@ -18,6 +18,7 @@
   "policy_parameterization": "reference",
   "rank": 146,
   "schema_version": 1,
+  "score_backend": "loop",
   "seed": 1,
   "training_can_proceed": true,
   "trajectory_count": 256

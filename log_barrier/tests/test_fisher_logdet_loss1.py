@@ -155,6 +155,77 @@ class FisherLogDetLoss1Tests(unittest.TestCase):
         self.assertEqual(diagnostics.trajectory_count, 9)
         self.assertEqual(diagnostics.gradient_trajectory_count, 2)
 
+    def test_vmap_matches_loop_surrogate_and_gradient(self):
+        loop_policy = ReferenceMLPSoftmaxPolicy(1, 3, hidden_sizes=()).double()
+        vmap_policy = ReferenceMLPSoftmaxPolicy(1, 3, hidden_sizes=()).double()
+        vmap_policy.load_state_dict(loop_policy.state_dict())
+        fisher_trajectories = [
+            _one_step_trajectory(action, state)
+            for state in (-1.0, 0.0, 1.0)
+            for action in range(3)
+        ]
+        gradient_trajectories = [
+            _one_step_trajectory(0, -0.5),
+            Trajectory(
+                states=[
+                    np.array((0.25,), dtype=np.float64),
+                    np.array((0.75,), dtype=np.float64),
+                ],
+                actions=[np.array(1), np.array(2)],
+                rewards=[0.0, 0.0],
+                dones=[False, True],
+            ),
+        ]
+
+        def value_and_gradient(policy, backend):
+            surrogate, diagnostics = trajectory_fisher_logdet_surrogate(
+                policy,
+                gradient_trajectories,
+                fisher_trajectories=fisher_trajectories,
+                score_backend=backend,
+                mu=1e-4,
+            )
+            gradients = torch.autograd.grad(surrogate, tuple(policy.parameters()))
+            flat_gradient = torch.cat([value.reshape(-1) for value in gradients])
+            return surrogate.detach(), flat_gradient, diagnostics
+
+        loop_value, loop_gradient, loop_diagnostics = value_and_gradient(loop_policy, "loop")
+        vmap_value, vmap_gradient, vmap_diagnostics = value_and_gradient(vmap_policy, "vmap")
+        torch.testing.assert_close(vmap_value, loop_value, atol=1e-10, rtol=1e-10)
+        torch.testing.assert_close(vmap_gradient, loop_gradient, atol=1e-10, rtol=1e-10)
+        self.assertEqual(loop_diagnostics.score_backend, "loop")
+        self.assertEqual(vmap_diagnostics.score_backend, "vmap")
+
+    def test_vmap_handles_short_trajectories_for_full_acrobot_policy(self):
+        policy = ReferenceMLPSoftmaxPolicy(6, 3, hidden_sizes=(8, 8))
+        trajectories = []
+        for trajectory_index in range(8):
+            states = [
+                np.full(6, trajectory_index + timestep / 10.0, dtype=np.float32)
+                for timestep in range(1 + trajectory_index % 3)
+            ]
+            actions = [
+                np.array((trajectory_index + timestep) % 3)
+                for timestep in range(len(states))
+            ]
+            trajectories.append(
+                Trajectory(
+                    states=states,
+                    actions=actions,
+                    rewards=[0.0] * len(states),
+                    dones=[False] * (len(states) - 1) + [True],
+                )
+            )
+        with self.assertRaises(FisherLogDetDomainError) as caught:
+            estimate_trajectory_fisher_inverse(
+                policy,
+                trajectories,
+                mu=0.0,
+                score_backend="vmap",
+            )
+        self.assertEqual(caught.exception.parameter_count, 146)
+        self.assertLessEqual(caught.exception.rank, 8)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -42,6 +42,7 @@
     }
   ],
   "schema_version": 1,
+  "score_backend": "loop",
   "selected_mu": 1e-10,
   "selection": "Fixed below the smallest initial eigenvalue observed across all five seeds; never adapted during training."
 }

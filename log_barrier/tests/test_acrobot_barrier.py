@@ -48,6 +48,11 @@ class AcrobotBarrierTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "must be divisible"):
             config.validate()
 
+    def test_fisher_score_backend_is_validated(self):
+        config = AcrobotConfig("fisher_logdet", 1, fisher_score_backend="invalid")
+        with self.assertRaisesRegex(ValueError, "fisher_score_backend"):
+            config.validate()
+
 
 if __name__ == "__main__":
     unittest.main()

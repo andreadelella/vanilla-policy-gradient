@@ -8,6 +8,8 @@ import json
 from pathlib import Path
 
 from .reporting import plot_fisher, plot_training
+from fisher_log_barrier import SCORE_BACKENDS
+
 from .training import AcrobotConfig, METHODS, POLICY_PARAMETERIZATIONS, train
 
 
@@ -45,6 +47,11 @@ def main(argv=None) -> int:
     parser.add_argument("--beta", type=float, default=546.4135158976487)
     parser.add_argument("--fisher-mu", type=float, default=1e-10)
     parser.add_argument("--fisher-beta", type=float, default=1.0)
+    parser.add_argument(
+        "--fisher-score-backend",
+        choices=SCORE_BACKENDS,
+        default="vmap",
+    )
     parser.add_argument("--device", default="cpu")
     args = parser.parse_args(argv)
     args.output.mkdir(parents=True, exist_ok=True)
@@ -64,6 +71,7 @@ def main(argv=None) -> int:
                 beta=args.beta,
                 fisher_mu=args.fisher_mu,
                 fisher_beta=args.fisher_beta,
+                fisher_score_backend=args.fisher_score_backend,
                 policy_parameterization=args.policy_parameterization,
                 device=args.device,
             )

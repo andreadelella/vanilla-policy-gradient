@@ -13,7 +13,7 @@ import torch
 from vpg.data_collection import collect_parallel_trajectories
 from vpg.train import make_env
 
-from .loss1 import FisherLogDetDomainError, estimate_trajectory_fisher_inverse
+from .loss1 import SCORE_BACKENDS, FisherLogDetDomainError, estimate_trajectory_fisher_inverse
 from .policy import ReferenceMLPSoftmaxPolicy
 
 
@@ -25,6 +25,7 @@ def run_preflight(
     hidden_sizes: tuple[int, ...] = (8, 8),
     horizon: int = 500,
     mu: float = 1e-10,
+    score_backend: str = "vmap",
     device: str = "cpu",
 ) -> dict:
     """Collect one normal batch and report strict barrier feasibility."""
@@ -72,12 +73,14 @@ def run_preflight(
         "parallel_envs": parallel_envs,
         "policy_parameterization": "reference",
         "mu": mu,
+        "score_backend": score_backend,
     }
     try:
         estimate = estimate_trajectory_fisher_inverse(
             policy,
             trajectories,
             mu=mu,
+            score_backend=score_backend,
             device=torch_device,
         )
     except FisherLogDetDomainError as error:
@@ -109,6 +112,7 @@ def main(argv=None) -> int:
     parser.add_argument("--hidden-sizes", type=int, nargs="+", default=[8, 8])
     parser.add_argument("--horizon", type=int, default=500)
     parser.add_argument("--mu", type=float, default=1e-10)
+    parser.add_argument("--score-backend", choices=SCORE_BACKENDS, default="vmap")
     parser.add_argument("--device", default="cpu")
     args = parser.parse_args(argv)
     result = run_preflight(
@@ -118,6 +122,7 @@ def main(argv=None) -> int:
         hidden_sizes=tuple(args.hidden_sizes),
         horizon=args.horizon,
         mu=args.mu,
+        score_backend=args.score_backend,
         device=args.device,
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
