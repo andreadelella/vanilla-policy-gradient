@@ -13,6 +13,8 @@ fisher_analysis/     Fixed-policy rollouts, streaming Fisher construction,
                      spectral metrics, plotting, and experiment orchestration.
 log_barrier/         Exact finite-MDP policy/joint Fisher experiment and the
                      sampled categorical Acrobot validation.
+fisher_log_barrier/  Strict trajectory-score Fisher logdet Loss-Function (1)
+                     surrogate and Acrobot feasibility preflight.
 results/figures/     Fixed-policy Fisher eigenspectrum plots.
 results/csv/         Fixed-policy Fisher summaries and iteration statistics.
 results/runs_new/    Current NPG width-comparison figures, videos, and metrics.
@@ -195,6 +197,62 @@ runs are not part of the final command interface; the submitted comparison uses
 only reward-only GPOMDP and the barrier kept active for the complete training
 run. Retained result files record the exact seeds, coefficient, checkpoints, and
 state-bank construction used to produce each figure.
+
+## Trajectory-Fisher logdet barrier
+
+The separate `fisher_log_barrier` package implements Loss-Function (1) for
+the whole-trajectory score Fisher
+
+```text
+z_k = sum_t grad log pi(a_kt | s_kt)
+F_hat = (1 / N) sum_k z_k z_k^T
+```
+
+and the strict domain `F_hat - mu I > 0`. It is distinct from the categorical
+action barrier above. The Acrobot implementation learns two logits and fixes the
+third to zero, removing the categorical common-logit null direction while
+preserving the complete policy family. The `[8, 8]` reference-logit policy has
+146 trainable parameters.
+
+Each update uses a large, independent batch to estimate `F_hat` and the normal
+eight-trajectory batch for GPOMDP and the outer Loss-Function (1) expectation.
+Fisher construction and factorization use float64. Only the small outer batch
+retains second-order autograd graphs. Environment-step reporting includes both
+batches. The implementation does not use damping, eigenvalue clipping, a
+pseudoinverse, or a pseudodeterminant.
+
+Run the mandatory Acrobot feasibility preflight before attempting training:
+
+```bash
+python -m fisher_log_barrier.preflight \
+  --episodes-per-update 256 \
+  --parallel-envs 16 \
+  --mu 1e-10 \
+  --output results/fisher_log_barrier/acrobot/preflight.json
+```
+
+Only if that preflight reports `training_can_proceed: true`, run a short pilot:
+
+```bash
+python -m log_barrier.acrobot.run \
+  --methods fisher_logdet \
+  --seeds 1 \
+  --updates 5 \
+  --fisher-episodes-per-update 256 \
+  --fisher-parallel-envs 16 \
+  --fisher-mu 1e-10 \
+  --fisher-beta 1.0 \
+  --output results/fisher_log_barrier/acrobot/pilot
+```
+
+The empirical estimator has rank at most the number of Fisher trajectories. The
+fixed default `mu=1e-10` was chosen below the smallest initial `lambda_min`
+observed in a five-seed, 256-trajectory preflight recorded in
+`results/fisher_log_barrier/acrobot/mu_selection.json`. If a new preflight fails,
+increase the Fisher batch rather than adapting `mu` during training or silently
+damping or clipping the matrix. To compare against a reward-only baseline in
+exactly the same identifiable coordinates, run both methods with
+`--policy-parameterization reference`.
 
 ### Lunar-Barrier paired reliability study
 

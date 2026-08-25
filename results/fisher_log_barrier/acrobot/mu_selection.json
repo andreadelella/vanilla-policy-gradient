@@ -1,0 +1,47 @@
+{
+  "env_id": "Acrobot-v1",
+  "episodes_per_seed": 256,
+  "hidden_sizes": [
+    8,
+    8
+  ],
+  "minimum_observed_eigenvalue": 6.333403441514747e-09,
+  "parallel_envs": 16,
+  "parameter_count": 146,
+  "policy_parameterization": "reference",
+  "runs": [
+    {
+      "maximum_eigenvalue": 287.8561919929364,
+      "minimum_eigenvalue": 6.140762676315412e-08,
+      "rank": 146,
+      "seed": 1
+    },
+    {
+      "maximum_eigenvalue": 318.4042951562774,
+      "minimum_eigenvalue": 4.083876455617885e-08,
+      "rank": 146,
+      "seed": 2
+    },
+    {
+      "maximum_eigenvalue": 368.6324073099056,
+      "minimum_eigenvalue": 1.710296934002663e-08,
+      "rank": 146,
+      "seed": 3
+    },
+    {
+      "maximum_eigenvalue": 369.04886940144047,
+      "minimum_eigenvalue": 6.333403441514747e-09,
+      "rank": 146,
+      "seed": 4
+    },
+    {
+      "maximum_eigenvalue": 356.95191707955735,
+      "minimum_eigenvalue": 9.638957875061799e-08,
+      "rank": 146,
+      "seed": 5
+    }
+  ],
+  "schema_version": 1,
+  "selected_mu": 1e-10,
+  "selection": "Fixed below the smallest initial eigenvalue observed across all five seeds; never adapted during training."
+}

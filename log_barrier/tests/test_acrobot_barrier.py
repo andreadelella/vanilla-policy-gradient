@@ -22,6 +22,31 @@ class AcrobotBarrierTests(unittest.TestCase):
     def test_fixed_coefficient(self):
         self.assertEqual(regularization_coefficient(AcrobotConfig("reward_only", 1)), 0.0)
         self.assertEqual(regularization_coefficient(AcrobotConfig("log_barrier", 1, beta=2.0)), 2.0)
+        self.assertEqual(regularization_coefficient(AcrobotConfig("fisher_logdet", 1)), 0.0)
+
+    def test_fisher_method_resolves_to_identifiable_policy(self):
+        config = AcrobotConfig("fisher_logdet", 1)
+        self.assertEqual(config.effective_policy_parameterization, "reference")
+        config.validate()
+
+    def test_fisher_method_rejects_standard_softmax_coordinates(self):
+        config = AcrobotConfig(
+            "fisher_logdet",
+            1,
+            policy_parameterization="standard",
+        )
+        with self.assertRaisesRegex(ValueError, "identifiable reference-logit"):
+            config.validate()
+
+    def test_fisher_collection_size_must_match_worker_count(self):
+        config = AcrobotConfig(
+            "fisher_logdet",
+            1,
+            fisher_episodes_per_update=10,
+            fisher_parallel_envs=4,
+        )
+        with self.assertRaisesRegex(ValueError, "must be divisible"):
+            config.validate()
 
 
 if __name__ == "__main__":

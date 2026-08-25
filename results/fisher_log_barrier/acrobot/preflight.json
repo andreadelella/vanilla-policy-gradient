@@ -1,0 +1,24 @@
+{
+  "env_id": "Acrobot-v1",
+  "episodes_per_update": 256,
+  "failure_reason": null,
+  "feasible": true,
+  "hidden_sizes": [
+    8,
+    8
+  ],
+  "horizon": 500,
+  "logdet_margin": -1069.606259764897,
+  "maximum_eigenvalue": 287.8561919929364,
+  "minimum_eigenvalue": 6.140762676315412e-08,
+  "mu": 1e-10,
+  "object": "trajectory_score_fisher_logdet_loss1",
+  "parallel_envs": 16,
+  "parameter_count": 146,
+  "policy_parameterization": "reference",
+  "rank": 146,
+  "schema_version": 1,
+  "seed": 1,
+  "training_can_proceed": true,
+  "trajectory_count": 256
+}

@@ -4,6 +4,7 @@ import gymnasium as gym
 import numpy as np
 import torch
 
+from fisher_log_barrier.policy import ReferenceMLPSoftmaxPolicy
 from vpg.policy import GaussianPolicy, MLPSoftmaxPolicy, build_policy
 
 
@@ -28,6 +29,13 @@ class PolicyTests(unittest.TestCase):
         states = torch.zeros(3, 4)
         actions = np.array([0, 1, 0])
         self.assertEqual(policy.log_prob(states, actions).shape, (3,))
+
+    def test_reference_policy_fixes_last_logit_and_removes_redundant_parameters(self):
+        policy = ReferenceMLPSoftmaxPolicy(6, 3, hidden_sizes=(8, 8))
+        logits = policy(torch.randn(5, 6))
+        self.assertEqual(logits.shape, (5, 3))
+        torch.testing.assert_close(logits[:, -1], torch.zeros(5))
+        self.assertEqual(sum(parameter.numel() for parameter in policy.parameters()), 146)
 
     def test_factory_matches_environment_action_space(self):
         continuous = gym.make("Pendulum-v1")
