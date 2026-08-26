@@ -1,0 +1,9 @@
+[1/1] running seed=24 fisher_beta=4.33613e-07
+{
+  "completed_count": 1,
+  "domain_failure_count": 0,
+  "fisher_beta": 4.336134880313252e-07,
+  "lower_tail_score": 37.36234837827713,
+  "mean_evaluation_return": 37.36234837827713,
+  "seed_count": 1
+}
