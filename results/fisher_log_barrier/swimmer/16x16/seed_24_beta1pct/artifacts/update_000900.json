@@ -1,0 +1,85 @@
+{
+  "artifact_id": "b436fbd88ace22af-update-000900",
+  "checkpoint": "checkpoints/update_000900.pt",
+  "config_id": "b436fbd88ace22af",
+  "fisher": "fishers/update_000900.npz",
+  "fisher_dtype": "float32",
+  "parameter_count": 452,
+  "parameter_layout": [
+    {
+      "dtype": "torch.float32",
+      "name": "log_std",
+      "numel": 2,
+      "shape": [
+        2
+      ],
+      "start": 0,
+      "stop": 2
+    },
+    {
+      "dtype": "torch.float32",
+      "name": "mean_net.0.weight",
+      "numel": 128,
+      "shape": [
+        16,
+        8
+      ],
+      "start": 2,
+      "stop": 130
+    },
+    {
+      "dtype": "torch.float32",
+      "name": "mean_net.0.bias",
+      "numel": 16,
+      "shape": [
+        16
+      ],
+      "start": 130,
+      "stop": 146
+    },
+    {
+      "dtype": "torch.float32",
+      "name": "mean_net.2.weight",
+      "numel": 256,
+      "shape": [
+        16,
+        16
+      ],
+      "start": 146,
+      "stop": 402
+    },
+    {
+      "dtype": "torch.float32",
+      "name": "mean_net.2.bias",
+      "numel": 16,
+      "shape": [
+        16
+      ],
+      "start": 402,
+      "stop": 418
+    },
+    {
+      "dtype": "torch.float32",
+      "name": "mean_net.4.weight",
+      "numel": 32,
+      "shape": [
+        2,
+        16
+      ],
+      "start": 418,
+      "stop": 450
+    },
+    {
+      "dtype": "torch.float32",
+      "name": "mean_net.4.bias",
+      "numel": 2,
+      "shape": [
+        2
+      ],
+      "start": 450,
+      "stop": 452
+    }
+  ],
+  "policy_update": 900,
+  "schema_version": 1
+}

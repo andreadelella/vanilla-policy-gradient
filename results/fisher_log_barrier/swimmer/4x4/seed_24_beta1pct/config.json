@@ -1,0 +1,30 @@
+{
+  "beta": 546.4135158976487,
+  "center_returns": true,
+  "checkpoint_interval": 100,
+  "collector": "complete episodes per update",
+  "device": "cpu",
+  "effective_policy_parameterization": "standard",
+  "env_id": "Swimmer-v5",
+  "episodes_per_update": 128,
+  "fisher_beta": 4.336134880313252e-07,
+  "fisher_episodes_per_update": 96,
+  "fisher_matrix_interval": 100,
+  "fisher_mu": 0.0,
+  "fisher_parallel_envs": 32,
+  "fisher_score_backend": "vmap",
+  "gamma": 0.999,
+  "hidden_sizes": [
+    4,
+    4
+  ],
+  "horizon": 500,
+  "learning_rate": 0.001,
+  "method": "fisher_logdet",
+  "normalize_returns": false,
+  "optimizer": "Adam",
+  "parallel_envs": 32,
+  "policy_parameterization": "standard",
+  "seed": 24,
+  "updates": 1200
+}
