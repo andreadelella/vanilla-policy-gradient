@@ -347,18 +347,24 @@ def _trajectory_scores(
     raise ValueError(f"score backend must be one of {SCORE_BACKENDS}, got {backend!r}")
 
 
-def estimate_trajectory_fisher_inverse(
+def compute_trajectory_fisher(
     policy: torch.nn.Module,
     trajectories,
     *,
-    mu: float,
     score_backend: str = "vmap",
     device: torch.device | str | None = None,
-) -> FisherInverseEstimate:
-    """Estimate and invert ``F_hat - mu I`` without retaining derivative graphs."""
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Return the trajectory-score Fisher and its score matrix in float64.
 
-    if not np.isfinite(mu) or mu < 0.0:
-        raise ValueError("mu must be finite and non-negative")
+    The returned Fisher is the undamped empirical matrix
+
+    ``F_hat = mean_k grad(log p(tau_k)) grad(log p(tau_k)).T``.
+
+    Both tensors are detached.  Running the policy itself in float64 therefore
+    keeps score construction, accumulation, and subsequent eigendecomposition
+    in float64 as well.
+    """
+
     named_parameters = tuple(
         (name, parameter)
         for name, parameter in policy.named_parameters()
@@ -371,7 +377,7 @@ def estimate_trajectory_fisher_inverse(
     if any(parameter.device != device for _, parameter in named_parameters):
         raise ValueError("all trainable policy parameters must be on the requested device")
 
-    _, fisher_scores = _trajectory_scores(
+    _, scores = _trajectory_scores(
         policy,
         trajectories,
         named_parameters,
@@ -379,10 +385,31 @@ def estimate_trajectory_fisher_inverse(
         create_graph=False,
         backend=score_backend,
     )
-    fisher_scores = fisher_scores.detach().to(torch.float64)
-    trajectory_count, parameter_count = fisher_scores.shape
-    fisher = fisher_scores.T @ fisher_scores / trajectory_count
+    scores = scores.detach().to(dtype=torch.float64)
+    fisher = scores.T @ scores / scores.shape[0]
     fisher = 0.5 * (fisher + fisher.T)
+    return fisher.detach(), scores
+
+
+def estimate_trajectory_fisher_inverse(
+    policy: torch.nn.Module,
+    trajectories,
+    *,
+    mu: float,
+    score_backend: str = "vmap",
+    device: torch.device | str | None = None,
+) -> FisherInverseEstimate:
+    """Estimate and invert ``F_hat - mu I`` without retaining derivative graphs."""
+
+    if not np.isfinite(mu) or mu < 0.0:
+        raise ValueError("mu must be finite and non-negative")
+    fisher, fisher_scores = compute_trajectory_fisher(
+        policy,
+        trajectories,
+        score_backend=score_backend,
+        device=device,
+    )
+    trajectory_count, parameter_count = fisher_scores.shape
     eigenvalues, rank = _detached_spectrum(fisher, fisher_scores)
     minimum_eigenvalue = float(eigenvalues[0])
     maximum_eigenvalue = float(eigenvalues[-1])

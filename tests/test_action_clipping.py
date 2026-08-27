@@ -2,6 +2,7 @@ import unittest
 
 import gymnasium as gym
 import numpy as np
+import torch
 
 from vpg.data_collection import collect_parallel_trajectories
 
@@ -34,6 +35,17 @@ class OutOfBoundsPolicy:
         return np.full((states.shape[0], 1), 2.5, dtype=np.float32)
 
 
+class RecordingFloat64Policy(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.weight = torch.nn.Parameter(torch.zeros(1, dtype=torch.float64))
+        self.observation_dtype = None
+
+    def sample_action(self, states):
+        self.observation_dtype = states.dtype
+        return np.zeros((states.shape[0], 1), dtype=np.float64)
+
+
 class ActionClippingTests(unittest.TestCase):
     def test_raw_action_is_stored_and_clipped_action_is_executed(self):
         env = OneStepVectorEnv()
@@ -46,6 +58,13 @@ class ActionClippingTests(unittest.TestCase):
         np.testing.assert_array_equal(env.received_actions[0], [[1.0]])
         np.testing.assert_array_equal(trajectory.actions[0], [2.5])
         np.testing.assert_array_equal(trajectory.executed_actions[0], [1.0])
+
+    def test_observations_follow_policy_parameter_dtype(self):
+        policy = RecordingFloat64Policy()
+
+        collect_parallel_trajectories(OneStepVectorEnv(), policy)
+
+        self.assertEqual(policy.observation_dtype, torch.float64)
 
 
 if __name__ == "__main__":

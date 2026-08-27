@@ -7,6 +7,7 @@ from torch.distributions import Categorical
 
 from fisher_log_barrier.loss1 import (
     FisherLogDetDomainError,
+    compute_trajectory_fisher,
     estimate_trajectory_fisher_inverse,
     trajectory_fisher_logdet_surrogate,
 )
@@ -131,6 +132,18 @@ class FisherLogDetLoss1Tests(unittest.TestCase):
         self.assertEqual(estimate.rank, 4)
         self.assertEqual(estimate.inverse_margin.dtype, torch.float64)
         self.assertFalse(estimate.inverse_margin.requires_grad)
+
+    def test_public_fisher_matrix_matches_score_outer_products(self):
+        policy = ReducedCategoricalPolicy()
+        trajectories = [_one_step_trajectory(action) for action in range(3)]
+
+        fisher, scores = compute_trajectory_fisher(policy, trajectories)
+
+        self.assertEqual(fisher.dtype, torch.float64)
+        self.assertEqual(scores.dtype, torch.float64)
+        self.assertFalse(fisher.requires_grad)
+        self.assertFalse(scores.requires_grad)
+        torch.testing.assert_close(fisher, scores.T @ scores / len(trajectories))
 
     def test_separate_fisher_and_gradient_batches_are_reported(self):
         policy = ReferenceMLPSoftmaxPolicy(1, 3, hidden_sizes=())

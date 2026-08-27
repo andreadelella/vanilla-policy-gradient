@@ -54,7 +54,15 @@ def collect_parallel_trajectories(
         while not np.all(finished):
             active_indices = np.where(~finished)[0]
             active_states = states[active_indices]
-            state_tensor = torch.tensor(active_states, dtype=torch.float32, device=device)
+            try:
+                policy_dtype = next(policy.parameters()).dtype
+            except (AttributeError, StopIteration):
+                policy_dtype = torch.float32
+            state_tensor = torch.as_tensor(
+                active_states,
+                dtype=policy_dtype,
+                device=device,
+            )
 
             # Rollout collection does not need gradients.
             with torch.no_grad():

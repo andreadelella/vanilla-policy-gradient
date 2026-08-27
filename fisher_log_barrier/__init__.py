@@ -9,6 +9,7 @@ from .loss1 import (
     FisherInverseEstimate,
     FisherLogDetDiagnostics,
     FisherLogDetDomainError,
+    compute_trajectory_fisher,
     estimate_trajectory_fisher_inverse,
     trajectory_fisher_logdet_surrogate,
 )
@@ -20,6 +21,7 @@ __all__ = [
     "FisherLogDetDomainError",
     "ReferenceMLPSoftmaxPolicy",
     "SCORE_BACKENDS",
+    "compute_trajectory_fisher",
     "estimate_trajectory_fisher_inverse",
     "trajectory_fisher_logdet_surrogate",
 ]
