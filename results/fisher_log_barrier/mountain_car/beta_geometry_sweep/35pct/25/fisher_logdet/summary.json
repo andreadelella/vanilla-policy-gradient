@@ -1,0 +1,70 @@
+{
+  "best_batch_original_return": -117.4375,
+  "completed_updates": 400,
+  "config": {
+    "action_repeat": 20,
+    "benchmark_evaluation_action_repeat": 1,
+    "diagnostic_interval": 100,
+    "env_id": "MountainCar-v0",
+    "fisher_beta": 6.725066309666292e-07,
+    "fisher_envs": 16,
+    "fisher_mu": 0.0,
+    "fisher_trajectories_per_env": 8,
+    "fisher_trajectory_count": 128,
+    "gamma": 1.0,
+    "goal_bonus": 0.0,
+    "hidden_sizes": [
+      4,
+      4
+    ],
+    "horizon": 200,
+    "learning_rate": 0.015,
+    "method": "fisher_logdet",
+    "policy_parameterization": "reference_logit",
+    "reported_original_return": "sum of native primitive rewards",
+    "reward_envs": 16,
+    "reward_trajectories_per_env": 2,
+    "reward_trajectory_count": 32,
+    "seed": 25,
+    "shaping_schedule": "none",
+    "shaping_updates": 0,
+    "solved_return": -110.0,
+    "speed_bonus": 0.0,
+    "torch_threads": 8,
+    "training_reward": "native MountainCar-v0 reward",
+    "updates": 400
+  },
+  "deterministic_evaluation": {
+    "mean_original_return": -111.05,
+    "success_rate": 1.0
+  },
+  "final_fisher": {
+    "components_90": 2,
+    "components_95": 3,
+    "components_99": 5,
+    "effective_rank": 1.8338383509148481,
+    "logdet_positive_spectrum": -478.8297022386005,
+    "matrix_dimension": 42,
+    "maximum_eigenvalue": 24.348731899964086,
+    "minimum_eigenvalue": 1.4082235881519372e-12,
+    "numerical_rank": 42,
+    "positive_condition_number": 17290387765708.291,
+    "psd_tolerance": 2.4348731899964086e-11,
+    "rank_tolerance": 2.2707319131642735e-13,
+    "sample_count": 128,
+    "smallest_positive_eigenvalue": 1.4082235881519372e-12,
+    "stable_rank": 1.0107280066387516,
+    "symmetry_error": 0.0,
+    "trace": 28.51429683872747,
+    "update": 400
+  },
+  "last_20_original_return": -130.140625,
+  "last_20_success_rate": 0.971875,
+  "solved": false,
+  "stochastic_evaluation": {
+    "mean_original_return": -130.97,
+    "success_rate": 0.98
+  },
+  "training_solved": false,
+  "wall_seconds": 305.9121308629983
+}
