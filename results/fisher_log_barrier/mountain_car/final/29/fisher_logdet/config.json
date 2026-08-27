@@ -1,0 +1,33 @@
+{
+  "action_repeat": 20,
+  "benchmark_evaluation_action_repeat": 1,
+  "diagnostic_interval": 100,
+  "env_id": "MountainCar-v0",
+  "fisher_beta": 9.60723758523756e-08,
+  "fisher_envs": 16,
+  "fisher_mu": 0.0,
+  "fisher_trajectories_per_env": 8,
+  "fisher_trajectory_count": 128,
+  "gamma": 1.0,
+  "goal_bonus": 0.0,
+  "hidden_sizes": [
+    4,
+    4
+  ],
+  "horizon": 200,
+  "learning_rate": 0.015,
+  "method": "fisher_logdet",
+  "policy_parameterization": "reference_logit",
+  "reported_original_return": "sum of native primitive rewards",
+  "reward_envs": 16,
+  "reward_trajectories_per_env": 2,
+  "reward_trajectory_count": 32,
+  "seed": 29,
+  "shaping_schedule": "none",
+  "shaping_updates": 0,
+  "solved_return": -110.0,
+  "speed_bonus": 0.0,
+  "torch_threads": 8,
+  "training_reward": "native MountainCar-v0 reward",
+  "updates": 400
+}

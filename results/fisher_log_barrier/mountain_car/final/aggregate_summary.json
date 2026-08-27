@@ -1,0 +1,155 @@
+{
+  "configuration": {
+    "action_repeat": 20,
+    "evaluation_action_repeat": 1,
+    "fisher_beta": 9.60723758523756e-08,
+    "fisher_mu": 0.0,
+    "fisher_trajectory_count": 128,
+    "gamma": 1.0,
+    "hidden_sizes": [
+      4,
+      4
+    ],
+    "learning_rate": 0.015,
+    "near_solved_return": -115.0,
+    "reward_trajectory_count": 32,
+    "seeds": [
+      24,
+      25,
+      26,
+      27,
+      28,
+      29
+    ],
+    "strict_solved_return": -110.0,
+    "training_reward": "native MountainCar-v0 reward",
+    "updates": 400
+  },
+  "methods": {
+    "fisher_logdet": {
+      "completed_runs": 6,
+      "components_90_mean": 2.1666666666666665,
+      "deterministic_return_mean": -127.54833333333333,
+      "deterministic_return_sample_std": 13.889923565904407,
+      "effective_rank_mean": 1.872800311476751,
+      "failed_runs": 0,
+      "full_numerical_rank_runs": 3,
+      "minimum_eigenvalue_mean": 7.172454128219933e-11,
+      "near_solved_runs": 2,
+      "numerical_rank_mean": 41.166666666666664,
+      "strict_solved_runs": 0
+    },
+    "reward_only": {
+      "completed_runs": 6,
+      "components_90_mean": 1.0,
+      "deterministic_return_mean": -129.54833333333332,
+      "deterministic_return_sample_std": 25.239493985947234,
+      "effective_rank_mean": 1.119678103568343,
+      "failed_runs": 0,
+      "full_numerical_rank_runs": 0,
+      "near_solved_runs": 2,
+      "numerical_rank_mean": 24.5,
+      "strict_condition_number": "infinite (all final Fishers are rank-deficient)",
+      "strict_solved_runs": 1
+    }
+  },
+  "paired_mean_return_difference_fisher_minus_reward": 1.9999999999999858,
+  "runs": [
+    {
+      "fisher_logdet": {
+        "components_90": 2,
+        "deterministic_return": -111.63,
+        "effective_rank": 1.7170791081954377,
+        "minimum_eigenvalue": 1.30390889592938e-11,
+        "numerical_rank": 42
+      },
+      "reward_only": {
+        "components_90": 1,
+        "deterministic_return": -113.13,
+        "effective_rank": 1.0107016473716686,
+        "numerical_rank": 18
+      },
+      "seed": 24
+    },
+    {
+      "fisher_logdet": {
+        "components_90": 2,
+        "deterministic_return": -141.16,
+        "effective_rank": 1.697748359904335,
+        "minimum_eigenvalue": 7.205702435357731e-15,
+        "numerical_rank": 39
+      },
+      "reward_only": {
+        "components_90": 1,
+        "deterministic_return": -115.88,
+        "effective_rank": 1.1679550188831003,
+        "numerical_rank": 25
+      },
+      "seed": 25
+    },
+    {
+      "fisher_logdet": {
+        "components_90": 2,
+        "deterministic_return": -133.53,
+        "effective_rank": 1.9963201807694233,
+        "minimum_eigenvalue": 1.7317868986956647e-11,
+        "numerical_rank": 42
+      },
+      "reward_only": {
+        "components_90": 1,
+        "deterministic_return": -108.69,
+        "effective_rank": 1.0875744315520084,
+        "numerical_rank": 24
+      },
+      "seed": 26
+    },
+    {
+      "fisher_logdet": {
+        "components_90": 2,
+        "deterministic_return": -143.98,
+        "effective_rank": 1.9879334744367925,
+        "minimum_eigenvalue": 2.5755983903069825e-13,
+        "numerical_rank": 41
+      },
+      "reward_only": {
+        "components_90": 1,
+        "deterministic_return": -161.78,
+        "effective_rank": 1.1943038216864628,
+        "numerical_rank": 24
+      },
+      "seed": 27
+    },
+    {
+      "fisher_logdet": {
+        "components_90": 2,
+        "deterministic_return": -114.49,
+        "effective_rank": 1.6538149875947468,
+        "minimum_eigenvalue": 1.9520450494848736e-13,
+        "numerical_rank": 41
+      },
+      "reward_only": {
+        "components_90": 1,
+        "deterministic_return": -115.67,
+        "effective_rank": 1.0930395461141087,
+        "numerical_rank": 26
+      },
+      "seed": 28
+    },
+    {
+      "fisher_logdet": {
+        "components_90": 3,
+        "deterministic_return": -120.5,
+        "effective_rank": 2.1839057579597725,
+        "minimum_eigenvalue": 3.9953031970053094e-10,
+        "numerical_rank": 42
+      },
+      "reward_only": {
+        "components_90": 1,
+        "deterministic_return": -162.14,
+        "effective_rank": 1.1644941558027102,
+        "numerical_rank": 30
+      },
+      "seed": 29
+    }
+  ]
+}
