@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "object": "whole_trajectory_score_empirical_fisher",
+  "source_run": "/Users/adelella/Documents/Useful/More/pj/vanilla-policy-gradient/results/fisher_log_barrier/mountaincar_continuous/final/seed_102_beta_2e-6",
+  "source_config": {
+    "action_repeat": 5,
+    "center_returns": true,
+    "env_id": "MountainCarContinuous-v0",
+    "fisher_beta": 2e-06,
+    "fisher_mu": 0.0,
+    "fisher_trajectory_count": 256,
+    "gamma": 1.0,
+    "hidden_sizes": [
+      2,
+      2
+    ],
+    "horizon": 500,
+    "learning_rate": 0.02,
+    "normalize_returns": false,
+    "optimizer": "Adam",
+    "reward_trajectory_count": 32,
+    "schema_version": 1,
+    "score_backend": "vmap",
+    "seed": 102,
+    "solve_return": 90.0,
+    "updates": 250,
+    "workers": 16
+  },
+  "updates": [
+    250
+  ],
+  "n_envs": 32,
+  "trajectories_per_env": 8,
+  "trajectory_count": 256,
+  "horizon": 500,
+  "diagnostic_seed": 401001,
+  "score_backend": "vmap",
+  "policy_dtype": "torch.float64",
+  "score_dtype": "torch.float64",
+  "fisher_dtype": "torch.float64",
+  "action_storage": "raw Gaussian samples",
+  "environment_actions": "clipped to action-space bounds",
+  "common_random_numbers_across_checkpoints": true
+}

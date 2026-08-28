@@ -1,0 +1,21 @@
+{
+  "seeds": [
+    101,
+    102,
+    103,
+    104,
+    105,
+    106
+  ],
+  "confidence_interval": "two-sided 95% Student-t, df=5",
+  "smoothing_window_updates": 10,
+  "common_update_budget": 200,
+  "gpomdp_final20": {
+    "mean": 87.13404000000001,
+    "ci95_half_width": 4.0670074124429805
+  },
+  "barrier_final20": {
+    "mean": 87.79328122387915,
+    "ci95_half_width": 2.7967677831761786
+  }
+}

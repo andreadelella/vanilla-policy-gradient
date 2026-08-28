@@ -1,0 +1,59 @@
+{
+  "seeds": [
+    101,
+    102,
+    103,
+    104,
+    105,
+    106
+  ],
+  "confidence_interval": "two-sided 95% Student-t, df=5",
+  "diagnostic_trajectories": 256,
+  "diagnostic_seed": 401001,
+  "common_update_budget": 200,
+  "geometry_checkpoints": {
+    "gp": [
+      50,
+      100,
+      150,
+      200
+    ],
+    "bar": [
+      40,
+      80,
+      120,
+      160,
+      200
+    ]
+  },
+  "matched_update_200": {
+    "gp": {
+      "numerical_rank": {
+        "mean": 16.0,
+        "ci95_half_width": 0.0
+      },
+      "effective_rank": {
+        "mean": 1.6513073104762155,
+        "ci95_half_width": 0.17883326249515613
+      },
+      "components_90": {
+        "mean": 1.6666666666666667,
+        "ci95_half_width": 0.5419262341644875
+      }
+    },
+    "bar": {
+      "numerical_rank": {
+        "mean": 16.0,
+        "ci95_half_width": 0.0
+      },
+      "effective_rank": {
+        "mean": 1.7244774147827744,
+        "ci95_half_width": 0.09817385105536408
+      },
+      "components_90": {
+        "mean": 2.0,
+        "ci95_half_width": 0.0
+      }
+    }
+  }
+}

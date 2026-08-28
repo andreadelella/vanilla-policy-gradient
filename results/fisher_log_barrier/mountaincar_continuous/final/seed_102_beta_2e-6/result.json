@@ -1,0 +1,36 @@
+{
+  "config": {
+    "action_repeat": 5,
+    "center_returns": true,
+    "env_id": "MountainCarContinuous-v0",
+    "fisher_beta": 2e-06,
+    "fisher_mu": 0.0,
+    "fisher_trajectory_count": 256,
+    "gamma": 1.0,
+    "hidden_sizes": [
+      2,
+      2
+    ],
+    "horizon": 500,
+    "learning_rate": 0.02,
+    "normalize_returns": false,
+    "optimizer": "Adam",
+    "optimizer_state_restored": false,
+    "resume_checkpoint": "/Users/adelella/Documents/Useful/More/pj/vanilla-policy-gradient/results/fisher_log_barrier/mountaincar_continuous/final/seed_102_beta_2e-6/checkpoints/update_0220.pt",
+    "resumed_from_update": 220,
+    "reward_trajectory_count": 32,
+    "schema_version": 1,
+    "score_backend": "vmap",
+    "seed": 102,
+    "solve_return": 90.0,
+    "updates": 250,
+    "workers": 16
+  },
+  "continuation_elapsed_seconds": 6.976425834000111,
+  "elapsed_seconds": 131.51705383400258,
+  "final_training_return": 92.33973069896399,
+  "first_solved_update": 226,
+  "last_10_mean_return": 92.24347948760773,
+  "maximum_training_return": 92.5647232097024,
+  "status": "complete"
+}
