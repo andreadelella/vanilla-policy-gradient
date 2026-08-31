@@ -1,0 +1,12 @@
+{
+  "completed_updates": 71,
+  "elapsed_seconds": 397.749946156051,
+  "failure_reason": "trajectory Fisher is outside the strict log-barrier domain F_hat - mu I > 0: parameters=16, trajectories=256, rank=16, lambda_min=-1.464428529e-15, lambda_max=2.279726605e+02, mu=0.000000000e+00",
+  "maximum_eigenvalue": 227.97266047775318,
+  "minimum_eigenvalue": -1.4644285292209104e-15,
+  "mu": 0.0,
+  "parameter_count": 16,
+  "rank": 16,
+  "status": "strict_domain_failure",
+  "trajectory_count": 256
+}
