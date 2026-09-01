@@ -23,14 +23,24 @@ def collect_parallel_trajectories(
     n_trajectories_per_env: int = 1,
     clip_actions: bool = True,
     device=None,
+    reset_seeds=None,
 ) -> List[Trajectory]:
     """Collect complete episodes from each worker in a vector environment."""
 
+    if reset_seeds is not None and len(reset_seeds) != n_trajectories_per_env:
+        raise ValueError(
+            "reset_seeds must contain one seed batch per trajectory pass"
+        )
     all_trajectories = []
 
     # Each pass collects one episode from every environment.
-    for _ in range(n_trajectories_per_env):
-        states, _ = envs.reset()
+    for trajectory_index in range(n_trajectories_per_env):
+        seeds = (
+            None
+            if reset_seeds is None
+            else reset_seeds[trajectory_index]
+        )
+        states, _ = envs.reset(seed=seeds) if seeds is not None else envs.reset()
 
         n_envs = envs.num_envs
 

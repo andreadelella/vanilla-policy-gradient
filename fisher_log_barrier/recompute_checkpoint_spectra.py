@@ -1,8 +1,8 @@
-"""Recompute trajectory-Fisher checkpoint spectra without retraining.
+"""Recompute trajectory Fisher checkpoint spectra without retraining.
 
 The saved training artifacts use float32 Fisher matrices.  This command loads
 the policy checkpoints, collects fresh seeded trajectories, and recomputes the
-whole-trajectory score Fisher entirely in float64.
+trajectory Fisher entirely in float64.
 """
 
 from __future__ import annotations
@@ -28,13 +28,41 @@ from fisher_analysis.fisher import (
 from fisher_log_barrier.loss1 import compute_trajectory_fisher
 from vpg.data_collection import collect_parallel_trajectories
 from vpg.policy import build_policy
-from vpg.train import make_env
 
 
 DEFAULT_RUN_DIR = Path(
     "results/fisher_log_barrier/swimmer/16x16/seed_24_beta1pct"
 )
-CHECKPOINT_PATTERN = re.compile(r"update_(\d+)\.pt$")
+CHECKPOINT_PATTERNS = (
+    re.compile(r"update_(\d+)\.pt$"),
+    re.compile(r"snapshot_iter_(\d+)\.pt$"),
+)
+
+
+class ActionRepeat(gym.Wrapper):
+    """Hold one policy action for several primitive environment steps."""
+
+    def __init__(self, env: gym.Env, repeat: int) -> None:
+        super().__init__(env)
+        self.repeat = repeat
+
+    def step(self, action):
+        total_reward = 0.0
+        for _ in range(self.repeat):
+            observation, reward, terminated, truncated, info = self.env.step(action)
+            total_reward += float(reward)
+            if terminated or truncated:
+                break
+        return observation, total_reward, terminated, truncated, info
+
+
+def _make_env(config: dict[str, Any], horizon: int):
+    def thunk():
+        env = gym.make(config["env_id"], max_episode_steps=horizon)
+        action_repeat = int(config.get("action_repeat", 1))
+        return ActionRepeat(env, action_repeat) if action_repeat > 1 else env
+
+    return thunk
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -56,8 +84,15 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _checkpoint_paths(run_dir: Path) -> dict[int, Path]:
     paths: dict[int, Path] = {}
-    for path in (run_dir / "checkpoints").glob("update_*.pt"):
-        match = CHECKPOINT_PATTERN.match(path.name)
+    for path in (run_dir / "checkpoints").glob("*.pt"):
+        match = next(
+            (
+                pattern.match(path.name)
+                for pattern in CHECKPOINT_PATTERNS
+                if pattern.match(path.name)
+            ),
+            None,
+        )
         if match:
             paths[int(match.group(1))] = path
     if not paths:
@@ -78,17 +113,20 @@ def _write_summary(output_dir: Path) -> None:
     if not rows:
         return
     with (output_dir / "summary.csv").open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=list(rows[0]),
+            lineterminator="\n",
+        )
         writer.writeheader()
         writer.writerows(rows)
 
 
 def _load_policy(probe_env, config: dict[str, Any], checkpoint_path: Path):
     checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
-    if "policy_state_dict" not in checkpoint:
-        raise ValueError(f"checkpoint has no policy_state_dict: {checkpoint_path}")
+    state_dict = checkpoint.get("policy_state_dict", checkpoint)
     policy = build_policy(config, probe_env).to(device="cpu", dtype=torch.float64)
-    policy.load_state_dict(checkpoint["policy_state_dict"])
+    policy.load_state_dict(state_dict)
     policy.eval()
     return policy, checkpoint
 
@@ -179,7 +217,7 @@ def run(args: argparse.Namespace) -> None:
 
     recompute_config = {
         "schema_version": 1,
-        "object": "whole_trajectory_score_empirical_fisher",
+        "object": "trajectory_score_empirical_fisher",
         "source_run": str(run_dir),
         "source_config": config,
         "updates": updates,
@@ -187,6 +225,7 @@ def run(args: argparse.Namespace) -> None:
         "trajectories_per_env": trajectories_per_env,
         "trajectory_count": args.n_envs * trajectories_per_env,
         "horizon": horizon,
+        "action_repeat": int(config.get("action_repeat", 1)),
         "diagnostic_seed": args.diagnostic_seed,
         "score_backend": args.score_backend,
         "policy_dtype": "torch.float64",
@@ -224,22 +263,25 @@ def run(args: argparse.Namespace) -> None:
             torch.manual_seed(args.diagnostic_seed)
             np.random.seed(args.diagnostic_seed % (2**32))
             envs = gym.vector.AsyncVectorEnv(
-                [
-                    make_env(
-                        config["env_id"],
-                        args.diagnostic_seed + worker,
-                        horizon,
-                    )
-                    for worker in range(args.n_envs)
-                ]
+                [_make_env(config, horizon) for _ in range(args.n_envs)]
             )
             try:
+                reset_seeds = [
+                    [
+                        args.diagnostic_seed
+                        + trajectory_index * args.n_envs
+                        + worker
+                        for worker in range(args.n_envs)
+                    ]
+                    for trajectory_index in range(trajectories_per_env)
+                ]
                 trajectories = collect_parallel_trajectories(
                     envs,
                     policy,
                     n_trajectories_per_env=trajectories_per_env,
                     clip_actions=bool(config["clip_actions"]),
                     device=torch.device("cpu"),
+                    reset_seeds=reset_seeds,
                 )
             finally:
                 envs.close()
@@ -274,7 +316,10 @@ def run(args: argparse.Namespace) -> None:
                 trajectory_scores=scores.cpu().numpy(),
                 eigenvalues=eigenvalues,
                 parameter_layout_json=np.asarray(json.dumps(layout)),
-                policy_update=np.asarray(int(checkpoint["policy_update"]), dtype=np.int64),
+                policy_update=np.asarray(
+                    int(checkpoint.get("policy_update", update)),
+                    dtype=np.int64,
+                ),
                 trajectory_count=np.asarray(len(trajectories), dtype=np.int64),
                 transition_count=np.asarray(
                     sum(len(trajectory.rewards) for trajectory in trajectories),

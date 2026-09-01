@@ -19,7 +19,6 @@ from fisher_log_barrier.loss1 import (
 from vpg.data_collection import collect_parallel_trajectories
 from vpg.gpomdp import compute_gpomdp_loss
 from vpg.policy import build_policy
-from vpg.train import make_env
 
 
 @dataclass(frozen=True)
@@ -95,6 +94,34 @@ class ContinuousMountainCarConfig:
         return result
 
 
+class ActionRepeat(gym.Wrapper):
+    """Hold one policy action for several primitive environment steps."""
+
+    def __init__(self, env: gym.Env, repeat: int) -> None:
+        super().__init__(env)
+        self.repeat = repeat
+
+    def step(self, action):
+        total_reward = 0.0
+        for _ in range(self.repeat):
+            observation, reward, terminated, truncated, info = self.env.step(action)
+            total_reward += float(reward)
+            if terminated or truncated:
+                break
+        return observation, total_reward, terminated, truncated, info
+
+
+def _make_env(config: ContinuousMountainCarConfig, worker: int, *, fisher: bool):
+    def thunk():
+        env = gym.make(config.env_id, max_episode_steps=config.horizon)
+        env = ActionRepeat(env, config.action_repeat)
+        seed_offset = config.fisher_seed_offset if fisher else 0
+        env.reset(seed=config.seed + seed_offset + worker)
+        return env
+
+    return thunk
+
+
 def _write_json(path: Path, value: dict) -> None:
     path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
@@ -157,23 +184,13 @@ def run(config: ContinuousMountainCarConfig, output: Path) -> dict:
     optimizer = torch.optim.Adam(policy.parameters(), lr=config.learning_rate)
     envs = gym.vector.AsyncVectorEnv(
         [
-            make_env(
-                config.env_id,
-                config.seed + worker,
-                config.horizon,
-                action_repeat=config.action_repeat,
-            )
+            _make_env(config, worker, fisher=False)
             for worker in range(config.workers)
         ]
     )
     fisher_envs = gym.vector.AsyncVectorEnv(
         [
-            make_env(
-                config.env_id,
-                config.seed + config.fisher_seed_offset + worker,
-                config.horizon,
-                action_repeat=config.action_repeat,
-            )
+            _make_env(config, worker, fisher=True)
             for worker in range(config.workers)
         ]
     )
