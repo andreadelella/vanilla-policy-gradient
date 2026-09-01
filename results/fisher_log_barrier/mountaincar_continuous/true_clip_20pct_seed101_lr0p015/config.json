@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "experiment": "true_fisher_gradient_clipping_beta_sweep",
+  "environment": "MountainCarContinuous-v0",
+  "seed": 101,
+  "learning_rate": 0.015,
+  "fisher_mu": 0.0,
+  "nominal_fisher_betas": [
+    2e-06,
+    5e-06,
+    1e-05,
+    2e-05,
+    5e-05,
+    0.0001,
+    0.0002
+  ],
+  "fisher_gradient_clip": {
+    "maximum_ratio_to_reward_gradient": 0.2,
+    "upper_bound_only": true,
+    "amplifies_fisher_gradient": false
+  },
+  "training": {
+    "hidden_sizes": [
+      2,
+      2
+    ],
+    "updates": 250,
+    "reward_trajectory_count": 32,
+    "fisher_trajectory_count": 256,
+    "separate_fisher_batch": true,
+    "workers": 16,
+    "horizon": 500,
+    "action_repeat": 5,
+    "gamma": 1.0,
+    "optimizer": "Adam",
+    "center_returns": true,
+    "normalize_returns": false,
+    "native_reward_only": true
+  },
+  "spectral_analysis": {
+    "checkpoint_updates": [
+      50,
+      100,
+      150,
+      200,
+      250
+    ],
+    "trajectory_count": 4096,
+    "n_envs": 32,
+    "trajectories_per_env": 128,
+    "diagnostic_seed": 4101,
+    "object": "trajectory_score_empirical_fisher"
+  },
+  "fixed_beta_comparison": "../full_sweep_lr_0p015"
+}

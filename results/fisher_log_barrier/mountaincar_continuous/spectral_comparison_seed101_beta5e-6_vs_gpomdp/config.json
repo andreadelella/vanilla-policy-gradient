@@ -1,0 +1,14 @@
+{
+  "barrier_analysis": "/workplace/adelella/adelella/MCIBConceptDrift/vanilla-policy-gradient/results/fisher_log_barrier/mountaincar_continuous/beta_sweep_2e-6_to_2e-4/beta_5e-6/seed_101/trajectory_fisher_analysis_4096",
+  "gpomdp_analysis": "/workplace/adelella/adelella/MCIBConceptDrift/vanilla-policy-gradient/results/fisher_log_barrier/mountaincar_continuous/final/seed_101_gpomdp_lr_0p015/trajectory_fisher_analysis_4096",
+  "paired_protocol": {
+    "trajectory_count": 4096,
+    "horizon": 500,
+    "action_repeat": 5,
+    "diagnostic_seed": 4101,
+    "score_backend": "vmap",
+    "policy_dtype": "torch.float64",
+    "score_dtype": "torch.float64",
+    "fisher_dtype": "torch.float64"
+  }
+}
