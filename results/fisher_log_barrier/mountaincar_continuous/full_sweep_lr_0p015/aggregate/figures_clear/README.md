@@ -1,6 +1,8 @@
 # Clear full-sweep figures
 
 All comparisons are paired by seed against reward-only GPOMDP.
+They summarize the 4,096-trajectory Fisher evaluations; the large raw Fisher
+matrices are kept local.
 
 - Positive values mean the barrier is better.
 - Geometry differences are in base-10 orders of magnitude.
