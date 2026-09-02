@@ -1,2 +1,0 @@
-seed,learning_rate,beta,checkpoint_update,batch_update,reward_trajectory_count,fisher_trajectory_count,reward_gradient_norm,status,fisher_surrogate_gradient_norm,barrier_gradient_norm,total_gradient_norm,barrier_to_reward_ratio,reward_barrier_cosine,domain_failure
-103,0.02,0.0001,50,51,32,256,155.1383056640625,complete,16525205.0,1652.5203857421875,1655.2000732421875,10.651917457580566,-0.029653212055563927,
