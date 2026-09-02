@@ -1,0 +1,6 @@
+{
+  "applied_gradient_vs_beta_inverse_margin_log10_correlation": 0.9709402439273596,
+  "interpretation": "The logdet derivative contains (F - mu I)^-1. Its spectral norm is 1 / (lambda_min - mu).",
+  "raw_gradient_vs_inverse_margin_log10_correlation": 0.9707173434087758,
+  "sample_count": 35
+}
