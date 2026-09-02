@@ -11,32 +11,16 @@ then estimates ``F = mean_k z_k z_k.T``.  The strict barrier domain is
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 
 import numpy as np
 import torch
 from torch.func import functional_call, grad_and_value, vmap
 
+from fisher_analysis.fisher import analyze_fisher
+
 
 SCORE_BACKENDS = ("vmap", "loop")
-
-
-@dataclass(frozen=True)
-class FisherLogDetDiagnostics:
-    parameter_count: int
-    trajectory_count: int
-    gradient_trajectory_count: int
-    separate_fisher_batch: bool
-    score_backend: str
-    rank: int
-    minimum_eigenvalue: float
-    maximum_eigenvalue: float
-    mu: float
-    logdet_margin: float
-    surrogate_value: float
-
-    def to_dict(self) -> dict:
-        return asdict(self)
 
 
 @dataclass(frozen=True)
@@ -47,8 +31,13 @@ class FisherInverseEstimate:
     parameter_count: int
     trajectory_count: int
     rank: int
+    numerical_rank: int
     minimum_eigenvalue: float
     maximum_eigenvalue: float
+    positive_condition_number: float
+    effective_rank: float
+    components_90: int
+    trace: float
     mu: float
     logdet_margin: float
     score_backend: str
@@ -58,8 +47,13 @@ class FisherInverseEstimate:
             "parameter_count": self.parameter_count,
             "trajectory_count": self.trajectory_count,
             "rank": self.rank,
+            "numerical_rank": self.numerical_rank,
             "minimum_eigenvalue": self.minimum_eigenvalue,
             "maximum_eigenvalue": self.maximum_eigenvalue,
+            "positive_condition_number": self.positive_condition_number,
+            "effective_rank": self.effective_rank,
+            "components_90": self.components_90,
+            "trace": self.trace,
             "mu": self.mu,
             "logdet_margin": self.logdet_margin,
             "score_backend": self.score_backend,
@@ -112,49 +106,45 @@ def _trajectory_log_probabilities(
 ) -> torch.Tensor:
     """Return one summed policy log-probability for each trajectory."""
 
-    if not trajectories:
-        raise ValueError("at least one trajectory is required")
-    totals = []
-    for index, trajectory in enumerate(trajectories):
-        if not trajectory.states or not trajectory.actions:
-            raise ValueError(f"trajectory {index} is empty")
-        if len(trajectory.states) != len(trajectory.actions):
-            raise ValueError(f"trajectory {index} has mismatched states and actions")
-        states = torch.as_tensor(
-            np.asarray(trajectory.states, dtype=np.float32),
-            dtype=next(policy.parameters()).dtype,
-            device=device,
-        )
-        actions = torch.as_tensor(np.asarray(trajectory.actions), device=device)
-        totals.append(policy.log_prob(states, actions).sum())
-    return torch.stack(totals)
+    dtype = next(policy.parameters()).dtype
+    return torch.stack(
+        [
+            policy.log_prob(
+                torch.as_tensor(
+                    np.asarray(trajectory.states),
+                    dtype=dtype,
+                    device=device,
+                ),
+                torch.as_tensor(np.asarray(trajectory.actions), device=device),
+            ).sum()
+            for trajectory in trajectories
+        ]
+    )
 
 
-def _flatten_parameter_gradients(
-    gradients: tuple[torch.Tensor | None, ...],
-    named_parameters: tuple[tuple[str, torch.nn.Parameter], ...],
+def _trainable_parameters(
+    policy: torch.nn.Module,
+    device: torch.device | str | None,
+) -> tuple[
+    tuple[tuple[str, torch.nn.Parameter], ...],
+    torch.device,
+]:
+    named_parameters = tuple(
+        (name, parameter)
+        for name, parameter in policy.named_parameters()
+        if parameter.requires_grad
+    )
+    policy_device = named_parameters[0][1].device
+    return (
+        named_parameters,
+        policy_device if device is None else torch.device(device),
+    )
+
+
+def _flatten_gradients(
+    gradients: tuple[torch.Tensor, ...],
 ) -> torch.Tensor:
-    """Flatten gradients in the stable order from ``policy.named_parameters``."""
-
-    pieces = []
-    for gradient, (name, parameter) in zip(gradients, named_parameters, strict=True):
-        if gradient is None:
-            raise RuntimeError(f"trajectory log-probability does not depend on parameter {name!r}")
-        if gradient.shape != parameter.shape:
-            raise RuntimeError(f"gradient shape mismatch for parameter {name!r}")
-        pieces.append(gradient.reshape(-1))
-    return torch.cat(pieces)
-
-
-def _detached_spectrum(
-    fisher: torch.Tensor,
-    scores: torch.Tensor,
-) -> tuple[torch.Tensor, int]:
-    matrix = fisher.detach().to(device="cpu", dtype=torch.float64)
-    eigenvalues = torch.linalg.eigvalsh(0.5 * (matrix + matrix.T))
-    score_matrix = scores.detach().to(device="cpu", dtype=torch.float64)
-    rank = int(torch.linalg.matrix_rank(score_matrix))
-    return eigenvalues, rank
+    return torch.cat([gradient.reshape(-1) for gradient in gradients])
 
 
 def _trajectory_scores_loop(
@@ -167,48 +157,21 @@ def _trajectory_scores_loop(
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Return trajectory log probabilities and their parameter scores."""
 
-    if not trajectories:
-        raise ValueError("at least one trajectory is required")
     parameters = tuple(parameter for _, parameter in named_parameters)
-    if not create_graph:
-        detached_log_probs = []
-        detached_scores = []
-        for trajectory in trajectories:
-            trajectory_log_prob = _trajectory_log_probabilities(
-                policy,
-                [trajectory],
-                device,
-            )[0]
-            gradients = torch.autograd.grad(
-                trajectory_log_prob,
-                parameters,
-                create_graph=False,
-                retain_graph=False,
-                allow_unused=True,
-            )
-            detached_log_probs.append(trajectory_log_prob.detach())
-            detached_scores.append(
-                _flatten_parameter_gradients(gradients, named_parameters).detach()
-            )
-        scores = torch.stack(detached_scores)
-        if not bool(torch.isfinite(scores).all()):
-            raise FloatingPointError("non-finite trajectory policy scores")
-        return torch.stack(detached_log_probs), scores
-
     trajectory_log_probs = _trajectory_log_probabilities(policy, trajectories, device)
     score_rows = []
-    for trajectory_log_prob in trajectory_log_probs:
+    for index, trajectory_log_prob in enumerate(trajectory_log_probs):
         gradients = torch.autograd.grad(
             trajectory_log_prob,
             parameters,
             create_graph=create_graph,
-            retain_graph=create_graph,
-            allow_unused=True,
+            retain_graph=create_graph or index + 1 < len(trajectories),
         )
-        score_rows.append(_flatten_parameter_gradients(gradients, named_parameters))
+        score_rows.append(_flatten_gradients(gradients))
     scores = torch.stack(score_rows)
-    if not bool(torch.isfinite(scores).all()):
-        raise FloatingPointError("non-finite trajectory policy scores")
+    if not create_graph:
+        trajectory_log_probs = trajectory_log_probs.detach()
+        scores = scores.detach()
     return trajectory_log_probs, scores
 
 
@@ -230,14 +193,6 @@ def _padded_trajectory_tensors(
     device: torch.device,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Pad complete trajectories for batched score computation."""
-
-    if not trajectories:
-        raise ValueError("at least one trajectory is required")
-    for index, trajectory in enumerate(trajectories):
-        if not trajectory.states or not trajectory.actions:
-            raise ValueError(f"trajectory {index} is empty")
-        if len(trajectory.states) != len(trajectory.actions):
-            raise ValueError(f"trajectory {index} has mismatched states and actions")
 
     trajectory_count = len(trajectories)
     maximum_length = max(len(trajectory.states) for trajectory in trajectories)
@@ -314,8 +269,6 @@ def _trajectory_scores_vmap(
     if not create_graph:
         trajectory_log_probs = trajectory_log_probs.detach()
         scores = scores.detach()
-    if not bool(torch.isfinite(scores).all()):
-        raise FloatingPointError("non-finite trajectory policy scores")
     return trajectory_log_probs, scores
 
 
@@ -328,23 +281,17 @@ def _trajectory_scores(
     create_graph: bool,
     backend: str,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    if backend == "vmap":
-        return _trajectory_scores_vmap(
-            policy,
-            trajectories,
-            named_parameters,
-            device,
-            create_graph=create_graph,
-        )
-    if backend == "loop":
-        return _trajectory_scores_loop(
-            policy,
-            trajectories,
-            named_parameters,
-            device,
-            create_graph=create_graph,
-        )
-    raise ValueError(f"score backend must be one of {SCORE_BACKENDS}, got {backend!r}")
+    score_function = {
+        "vmap": _trajectory_scores_vmap,
+        "loop": _trajectory_scores_loop,
+    }[backend]
+    return score_function(
+        policy,
+        trajectories,
+        named_parameters,
+        device,
+        create_graph=create_graph,
+    )
 
 
 def compute_trajectory_fisher(
@@ -365,17 +312,7 @@ def compute_trajectory_fisher(
     in float64 as well.
     """
 
-    named_parameters = tuple(
-        (name, parameter)
-        for name, parameter in policy.named_parameters()
-        if parameter.requires_grad
-    )
-    if not named_parameters:
-        raise ValueError("policy has no trainable parameters")
-    inferred_device = named_parameters[0][1].device
-    device = inferred_device if device is None else torch.device(device)
-    if any(parameter.device != device for _, parameter in named_parameters):
-        raise ValueError("all trainable policy parameters must be on the requested device")
+    named_parameters, device = _trainable_parameters(policy, device)
 
     _, scores = _trajectory_scores(
         policy,
@@ -401,8 +338,6 @@ def estimate_trajectory_fisher_inverse(
 ) -> FisherInverseEstimate:
     """Estimate and invert ``F_hat - mu I`` without retaining derivative graphs."""
 
-    if not np.isfinite(mu) or mu < 0.0:
-        raise ValueError("mu must be finite and non-negative")
     fisher, fisher_scores = compute_trajectory_fisher(
         policy,
         trajectories,
@@ -410,7 +345,13 @@ def estimate_trajectory_fisher_inverse(
         device=device,
     )
     trajectory_count, parameter_count = fisher_scores.shape
-    eigenvalues, rank = _detached_spectrum(fisher, fisher_scores)
+    matrix = fisher.detach().to(device="cpu", dtype=torch.float64)
+    eigenvalues = torch.linalg.eigvalsh(matrix)
+    rank = int(torch.linalg.matrix_rank(fisher_scores))
+    _, spectrum, _, _ = analyze_fisher(
+        matrix,
+        sample_count=trajectory_count,
+    )
     minimum_eigenvalue = float(eigenvalues[0])
     maximum_eigenvalue = float(eigenvalues[-1])
     identity = torch.eye(parameter_count, dtype=fisher.dtype, device=fisher.device)
@@ -438,8 +379,13 @@ def estimate_trajectory_fisher_inverse(
         parameter_count=parameter_count,
         trajectory_count=trajectory_count,
         rank=rank,
+        numerical_rank=int(spectrum["numerical_rank"]),
         minimum_eigenvalue=minimum_eigenvalue,
         maximum_eigenvalue=maximum_eigenvalue,
+        positive_condition_number=float(spectrum["positive_condition_number"]),
+        effective_rank=float(spectrum["effective_rank"]),
+        components_90=int(spectrum["components_90"]),
+        trace=float(spectrum["trace"]),
         mu=float(mu),
         logdet_margin=logdet_margin,
         score_backend=score_backend,
@@ -454,7 +400,7 @@ def trajectory_fisher_logdet_surrogate(
     fisher_trajectories=None,
     score_backend: str = "vmap",
     device: torch.device | str | None = None,
-) -> tuple[torch.Tensor, FisherLogDetDiagnostics]:
+) -> tuple[torch.Tensor, FisherInverseEstimate]:
     """Return the differentiable Loss-Function (1) barrier surrogate.
 
     ``fisher_trajectories`` estimates the Fisher and may be a larger batch than
@@ -464,20 +410,9 @@ def trajectory_fisher_logdet_surrogate(
     derivative of ``Tr(A B(theta))`` is preserved.
     """
 
-    named_parameters = tuple(
-        (name, parameter)
-        for name, parameter in policy.named_parameters()
-        if parameter.requires_grad
-    )
-    if not named_parameters:
-        raise ValueError("policy has no trainable parameters")
-    inferred_device = named_parameters[0][1].device
-    device = inferred_device if device is None else torch.device(device)
-    if any(parameter.device != device for _, parameter in named_parameters):
-        raise ValueError("all trainable policy parameters must be on the requested device")
+    named_parameters, device = _trainable_parameters(policy, device)
 
     fisher_samples = trajectories if fisher_trajectories is None else fisher_trajectories
-    separate_fisher_batch = fisher_samples is not trajectories
     estimate = estimate_trajectory_fisher_inverse(
         policy,
         fisher_samples,
@@ -503,19 +438,4 @@ def trajectory_fisher_logdet_surrogate(
     )
     b_values = quadratic - float(mu) * trace_inverse
     surrogate = (trajectory_log_probs * b_values.detach() + b_values).mean()
-    if not bool(torch.isfinite(surrogate)):
-        raise FloatingPointError("non-finite Fisher log-determinant surrogate")
-    diagnostics = FisherLogDetDiagnostics(
-        parameter_count=estimate.parameter_count,
-        trajectory_count=estimate.trajectory_count,
-        gradient_trajectory_count=len(trajectories),
-        separate_fisher_batch=separate_fisher_batch,
-        score_backend=score_backend,
-        rank=estimate.rank,
-        minimum_eigenvalue=estimate.minimum_eigenvalue,
-        maximum_eigenvalue=estimate.maximum_eigenvalue,
-        mu=estimate.mu,
-        logdet_margin=estimate.logdet_margin,
-        surrogate_value=float(surrogate.detach().cpu()),
-    )
-    return surrogate, diagnostics
+    return surrogate, estimate

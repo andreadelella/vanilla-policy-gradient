@@ -145,7 +145,7 @@ class FisherLogDetLoss1Tests(unittest.TestCase):
         self.assertFalse(scores.requires_grad)
         torch.testing.assert_close(fisher, scores.T @ scores / len(trajectories))
 
-    def test_separate_fisher_and_gradient_batches_are_reported(self):
+    def test_separate_fisher_and_gradient_batches_are_supported(self):
         policy = ReferenceMLPSoftmaxPolicy(1, 3, hidden_sizes=())
         fisher_trajectories = [
             _one_step_trajectory(action, state)
@@ -164,9 +164,7 @@ class FisherLogDetLoss1Tests(unittest.TestCase):
         )
         gradients = torch.autograd.grad(surrogate, tuple(policy.parameters()))
         self.assertTrue(all(bool(torch.isfinite(value).all()) for value in gradients))
-        self.assertTrue(diagnostics.separate_fisher_batch)
         self.assertEqual(diagnostics.trajectory_count, 9)
-        self.assertEqual(diagnostics.gradient_trajectory_count, 2)
 
     def test_vmap_matches_loop_surrogate_and_gradient(self):
         loop_policy = ReferenceMLPSoftmaxPolicy(1, 3, hidden_sizes=()).double()

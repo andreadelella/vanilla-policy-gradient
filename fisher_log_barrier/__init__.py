@@ -7,7 +7,6 @@ sampled Acrobot regularizer is the statewise categorical action barrier.
 from .loss1 import (
     SCORE_BACKENDS,
     FisherInverseEstimate,
-    FisherLogDetDiagnostics,
     FisherLogDetDomainError,
     compute_trajectory_fisher,
     estimate_trajectory_fisher_inverse,
@@ -17,7 +16,6 @@ from .policy import ReferenceMLPSoftmaxPolicy
 
 __all__ = [
     "FisherInverseEstimate",
-    "FisherLogDetDiagnostics",
     "FisherLogDetDomainError",
     "ReferenceMLPSoftmaxPolicy",
     "SCORE_BACKENDS",
